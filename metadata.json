@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Corepunk Command Center",
+  "description": "An analytics command center for the MMORPG 'Corepunk'. It monitors, analyzes, and helps make decisions based on social media and in-game metrics, linking team activities to community reactions.",
+  "requestFramePermissions": []
+}
