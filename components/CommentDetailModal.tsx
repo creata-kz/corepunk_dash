@@ -5,6 +5,7 @@ import { CommentCard } from './CommentCard';
 
 type SentimentFilter = Sentiment | "All";
 type UserTypeFilter = UserType | "All";
+type SortBy = "recent" | "mostLiked" | "mostViewed";
 
 interface CommentDetailModalProps {
     isOpen: boolean;
@@ -16,12 +17,28 @@ export const CommentDetailModal: React.FC<CommentDetailModalProps> = ({ isOpen, 
     const modalRoot = document.getElementById('modal-root');
     const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>("All");
     const [userTypeFilter, setUserTypeFilter] = useState<UserTypeFilter>("All");
+    const [sortBy, setSortBy] = useState<SortBy>("recent");
 
-    const filteredComments = comments.filter(c => {
-        const sentimentMatch = sentimentFilter === "All" || c.sentiment === sentimentFilter;
-        const userTypeMatch = userTypeFilter === "All" || c.userType === userTypeFilter;
-        return sentimentMatch && userTypeMatch;
-    }).slice(0, 100);
+    const filteredAndSortedComments = comments
+        .filter(c => {
+            const sentimentMatch = sentimentFilter === "All" || c.sentiment === sentimentFilter;
+            const userTypeMatch = userTypeFilter === "All" || c.userType === userTypeFilter;
+            return sentimentMatch && userTypeMatch;
+        })
+        .sort((a, b) => {
+            if (sortBy === "mostLiked") {
+                const aScore = (a.metadata?.score || 0) + (a.metadata?.likes || 0);
+                const bScore = (b.metadata?.score || 0) + (b.metadata?.likes || 0);
+                return bScore - aScore;
+            } else if (sortBy === "mostViewed") {
+                const aViews = a.metadata?.views || 0;
+                const bViews = b.metadata?.views || 0;
+                return bViews - aViews;
+            }
+            // Default: recent (already sorted by timestamp desc)
+            return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        })
+        .slice(0, 100);
 
     if (!isOpen || !modalRoot) return null;
 
@@ -71,13 +88,40 @@ export const CommentDetailModal: React.FC<CommentDetailModalProps> = ({ isOpen, 
                                 </button>
                             ))}
                         </div>
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                            <span className="text-sm font-medium text-brand-text-secondary w-20">Sort by:</span>
+                            <button
+                                onClick={() => setSortBy("recent")}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                    sortBy === "recent" ? 'bg-teal-600 text-white' : 'bg-black/20 hover:bg-black/40 text-brand-text-secondary'
+                                }`}
+                            >
+                                Recent
+                            </button>
+                            <button
+                                onClick={() => setSortBy("mostLiked")}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                    sortBy === "mostLiked" ? 'bg-teal-600 text-white' : 'bg-black/20 hover:bg-black/40 text-brand-text-secondary'
+                                }`}
+                            >
+                                Most Liked
+                            </button>
+                            <button
+                                onClick={() => setSortBy("mostViewed")}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                    sortBy === "mostViewed" ? 'bg-teal-600 text-white' : 'bg-black/20 hover:bg-black/40 text-brand-text-secondary'
+                                }`}
+                            >
+                                Most Viewed
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <div className="overflow-y-auto flex-1 p-4 pt-0">
                     <div className="space-y-3">
-                        {filteredComments.length > 0 ? (
-                            filteredComments.map(comment => <CommentCard key={comment.id} comment={comment}/>)
+                        {filteredAndSortedComments.length > 0 ? (
+                            filteredAndSortedComments.map(comment => <CommentCard key={comment.id} comment={comment}/>)
                         ) : (
                             <div className="text-center py-8">
                                 <p className="text-brand-text-secondary">No comments match filters.</p>

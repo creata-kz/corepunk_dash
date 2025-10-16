@@ -309,7 +309,8 @@ class SupabaseService {
   }
 
   /**
-   * Получение событий (постов и комментариев пользователей для Activity Feed)
+   * Получение событий от разработчиков (релизы, хотфиксы, маркетинг)
+   * Для Activity Feed - официальные события от команды
    */
   public async getActivities(days: number = 90): Promise<ProductionActivity[]> {
     if (!this.isConnected() || !this.client) {
@@ -321,12 +322,15 @@ class SupabaseService {
       startDate.setDate(startDate.getDate() - days);
       const startDateStr = startDate.toISOString();
 
-      // Получаем посты и комментарии из всех платформ
+      // Получаем события от разработчиков
       const { data, error } = await this.client
         .from('events')
         .select('*')
         .gte('event_timestamp', startDateStr)
-        .or('event_type.like.%post%,event_type.like.%comment%')
+        .in('event_type', [
+          'release', 'hotfix', 'marketing_campaign',
+          'community_event', 'pr_publication'
+        ])
         .order('event_timestamp', { ascending: false })
         .limit(100);
 
@@ -335,6 +339,8 @@ class SupabaseService {
         return [];
       }
 
+      // Если нет событий от разработчиков, возвращаем пустой массив
+      // (не показываем Activity Feed, пока команда не добавит события)
       return this.transformToActivities(data as SupabaseEvent[]);
     } catch (error) {
       console.error('Error in getActivities:', error);
@@ -343,7 +349,8 @@ class SupabaseService {
   }
 
   /**
-   * Получение комментариев из событий
+   * Получение постов и комментариев пользователей для Community Pulse
+   * Включает посты и комментарии со всех платформ
    */
   public async getComments(days: number = 90): Promise<Comment[]> {
     if (!this.isConnected() || !this.client) {
@@ -355,12 +362,12 @@ class SupabaseService {
       startDate.setDate(startDate.getDate() - days);
       const startDateStr = startDate.toISOString();
 
-      // Получаем комментарии из разных платформ
+      // Получаем ВСЕ посты и комментарии из всех платформ
       const { data, error } = await this.client
         .from('events')
         .select('*')
         .gte('event_timestamp', startDateStr)
-        .or('event_type.eq.comment_created,event_type.eq.reddit_comment_mention,event_type.eq.youtube_comment,event_type.eq.vk_comment')
+        .or('event_type.like.%post%,event_type.like.%comment%')
         .order('event_timestamp', { ascending: false })
         .limit(500);
 
@@ -369,6 +376,7 @@ class SupabaseService {
         return [];
       }
 
+      console.log(`✅ Fetched ${data?.length || 0} posts/comments for Community Pulse`);
       return this.transformToComments(data as SupabaseEvent[]);
     } catch (error) {
       console.error('Error in getComments:', error);
@@ -474,33 +482,15 @@ class SupabaseService {
     return events.map((event, index) => {
       const props = event.properties || {};
 
-      // Извлекаем автора и анонимизируем
-      const author = props.author || props.author_name || props.username || 'Anonymous';
-      const anonymizedAuthor = this.anonymizeUsername(author);
-
-      // Извлекаем текст поста или комментария
-      const text = props.title ||
-                   props.selftext ||
-                   props.comment_text ||
-                   props.comment_body ||
-                   props.text ||
-                   'No content';
-
-      // Определяем тип активности
-      const isPost = event.event_type.includes('post');
-      const activityType = isPost ? 'Post' : 'Comment';
-
-      // Формируем описание: "Username: Preview of text..."
-      const textPreview = text.length > 60 ? text.substring(0, 60) + '...' : text;
-      const description = `${anonymizedAuthor}: ${textPreview}`;
-
       return {
         id: index + 1,
-        type: ProductionActivityType.CommunityEvent, // Все пользовательский контент = Community Event
+        type: this.mapEventTypeToActivityType(event.event_type),
         date: event.event_timestamp.split('T')[0],
-        description: description,
-        status: 'Completed' as const,
-        platforms: [this.capitalizeFirstLetter(event.platform)],
+        startDate: props.start_date,
+        endDate: props.end_date,
+        description: props.description || props.title || event.event_type,
+        status: this.determineActivityStatus(event.event_timestamp, props),
+        platforms: props.platforms || [event.platform],
       };
     });
   }
@@ -509,8 +499,10 @@ class SupabaseService {
     return events.map((event, index) => {
       const props = event.properties || {};
 
-      // Извлекаем текст из разных полей в зависимости от платформы
-      const text = props.comment_text ||
+      // Извлекаем текст из разных полей (посты и комментарии)
+      const text = props.title ||  // Reddit post title
+                   props.selftext ||  // Reddit post text
+                   props.comment_text ||
                    props.comment_body ||
                    props.text ||
                    props.message_content ||
@@ -519,21 +511,36 @@ class SupabaseService {
                    'No text';
 
       // Извлекаем автора
-      const author = props.author ||
-                     props.author_name ||
-                     props.username ||
-                     props.user ||
-                     'Anonymous';
+      const rawAuthor = props.author ||
+                        props.author_name ||
+                        props.username ||
+                        props.user ||
+                        'Anonymous';
+
+      // Анонимизируем username
+      const anonymizedAuthor = this.anonymizeUsername(rawAuthor);
+
+      // Извлекаем метрики для определения "важности"
+      const score = props.score || event.value || 0;
+      const likes = props.like_count || props.likes || 0;
+      const views = props.view_count || props.views || 0;
 
       return {
         id: index + 1,
-        activityId: 0, // Нужно будет связать с activity
+        activityId: 0, // Не привязываем к activity
         text: text,
-        author: author,
+        author: anonymizedAuthor,  // Используем анонимизированное имя
         sentiment: this.determineSentiment(props),
         userType: this.determineUserType(event.platform),
         source: this.capitalizeFirstLetter(event.platform),
         timestamp: event.event_timestamp,
+        // Добавляем метрики для сортировки (не в типе Comment, но можем использовать)
+        metadata: {
+          score,
+          likes,
+          views,
+          url: props.url || props.permalink,
+        }
       };
     });
   }

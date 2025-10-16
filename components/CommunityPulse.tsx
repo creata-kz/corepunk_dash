@@ -41,8 +41,16 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
     }, [sentimentScore]);
 
     const keyComments = useMemo(() => {
-        const positive = comments.find(c => c.sentiment === 'Positive');
-        const negative = comments.find(c => c.sentiment === 'Negative');
+        // Сортируем по важности (score + likes + views)
+        const sortedByImportance = [...comments].sort((a, b) => {
+            const aScore = (a.metadata?.score || 0) + (a.metadata?.likes || 0) + ((a.metadata?.views || 0) / 100);
+            const bScore = (b.metadata?.score || 0) + (b.metadata?.likes || 0) + ((b.metadata?.views || 0) / 100);
+            return bScore - aScore;
+        });
+
+        // Берем самый важный позитивный и негативный комментарий
+        const positive = sortedByImportance.find(c => c.sentiment === 'Positive');
+        const negative = sortedByImportance.find(c => c.sentiment === 'Negative');
         return { positive, negative };
     }, [comments]);
     

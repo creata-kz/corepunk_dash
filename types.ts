@@ -50,7 +50,13 @@ export interface Comment {
     sentiment: Sentiment;
     userType: UserType;
     source: string; // 'YouTube', 'Twitter', 'Reddit', etc.
-    timestamp: string; 
+    timestamp: string;
+    metadata?: {
+        score?: number;
+        likes?: number;
+        views?: number;
+        url?: string;
+    };
 }
 
 export interface ChatMessage {
