@@ -1,8 +1,8 @@
 
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DailyMetric, ProductionActivity, Comment, ChatMessage, DateRange } from './types';
 import { generateInitialActivities, generateMetrics, generateComments } from './services/mockDataService';
+import { supabaseService } from './services/supabaseService';
 import { SparklineCard } from './components/SparklineCard';
 import { TimelineChart } from './components/TimelineChart';
 import { SocialEngagementChart } from './components/SocialEngagementChart';
@@ -21,22 +21,93 @@ const App: React.FC = () => {
   const [allMetrics, setAllMetrics] = useState<DailyMetric[]>([]);
   const [allComments, setAllComments] = useState<Comment[]>([]);
 
+  // Loading & Error State
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<'mock' | 'supabase'>('mock');
+
   // Control State
   const [dateRange, setDateRange] = useState<DateRange>('30d');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ProductionActivity | null>(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
 
-  useEffect(() => {
+  // Load mock data fallback
+  const useMockData = useCallback(() => {
+    console.log('📦 Loading mock data...');
     const initialActivities = generateInitialActivities();
     const initialMetrics = generateMetrics(initialActivities, 90);
     const initialComments = generateComments(initialActivities);
-    
+
     setAllActivities(initialActivities);
     setAllMetrics(initialMetrics);
     setAllComments(initialComments);
+    setDataSource('mock');
   }, []);
 
+  // Load data from Supabase or fallback to mock
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Check if Supabase is connected
+      if (supabaseService.isConnected()) {
+        console.log('📡 Loading data from Supabase...');
+
+        // Load data in parallel
+        const [metrics, activities, comments] = await Promise.all([
+          supabaseService.getSnapshotMetrics(90),
+          supabaseService.getActivities(90),
+          supabaseService.getComments(90)
+        ]);
+
+        // Check if we have any data
+        if (metrics.length > 0 || activities.length > 0) {
+          setAllMetrics(metrics);
+          setAllActivities(activities);
+          setAllComments(comments);
+          setDataSource('supabase');
+          console.log('✅ Supabase data loaded:', {
+            metrics: metrics.length,
+            activities: activities.length,
+            comments: comments.length
+          });
+        } else {
+          // Database is empty, use mock data
+          console.warn('⚠️ Supabase database is empty, using mock data');
+          useMockData();
+        }
+      } else {
+        // Supabase not configured, use mock data
+        console.warn('⚠️ Supabase not configured, using mock data');
+        useMockData();
+      }
+    } catch (err) {
+      console.error('❌ Error loading data:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+
+      // Fallback to mock data on error
+      useMockData();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [useMockData]);
+
+  // Refresh data manually
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    await loadData();
+    setIsRefreshing(false);
+  };
+
+  // Initial data load
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Parallax scroll effect
   useEffect(() => {
     const handleScroll = () => {
       const parallaxFactor = 0.5;
@@ -48,25 +119,38 @@ const App: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Auto-refresh every 5 minutes (only for Supabase data)
+  useEffect(() => {
+    if (dataSource === 'supabase' && !isLoading) {
+      const interval = setInterval(() => {
+        console.log('🔄 Auto-refreshing data...');
+        loadData();
+      }, 5 * 60 * 1000); // 5 minutes
+
+      return () => clearInterval(interval);
+    }
+  }, [dataSource, isLoading, loadData]);
+
+  // Filter data by date range
   const { activities, metrics, comments } = useMemo(() => {
     const rangeMap = { '7d': 7, '30d': 30, '90d': 90 };
     const days = rangeMap[dateRange];
-    
+
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - days);
-    
+
     const startStr = startDate.toISOString().split('T')[0];
 
     const filteredMetrics = allMetrics.filter(m => m.date >= startStr);
     const filteredActivities = allActivities.filter(a => a.date >= startStr);
-    
+
     const activityIds = new Set(filteredActivities.map(a => a.id));
     const filteredComments = allComments.filter(c => activityIds.has(c.activityId));
 
     return { metrics: filteredMetrics, activities: filteredActivities, comments: filteredComments };
   }, [dateRange, allMetrics, allActivities, allComments]);
-  
+
   const handleSelectActivity = (activity: ProductionActivity) => {
     setSelectedActivity(activity.id === selectedActivity?.id ? null : activity);
   }
@@ -74,7 +158,7 @@ const App: React.FC = () => {
   const handleCloseActivityModal = () => {
     setSelectedActivity(null);
   }
-  
+
   const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
   const prevMetric = metrics.length > 1 ? metrics[metrics.length - 2] : null;
 
@@ -82,21 +166,58 @@ const App: React.FC = () => {
     if (previous === undefined || previous === 0) return 0;
     return ((current - previous) / previous) * 100;
   };
-  
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-brand-primary mx-auto mb-4"></div>
+          <p className="text-brand-text-primary text-lg font-semibold">Loading Analytics...</p>
+          <p className="text-brand-text-secondary text-sm mt-2">Fetching data from {supabaseService.isConnected() ? 'Supabase' : 'demo mode'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state (with retry)
+  if (error && dataSource !== 'mock') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-card p-8 max-w-md text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-red-500 mb-4">Error Loading Data</h2>
+          <p className="text-brand-text-secondary mb-6">{error}</p>
+          <button
+            onClick={loadData}
+            className="bg-brand-primary hover:bg-brand-secondary text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="min-h-screen p-4 sm:p-6 lg:p-8 relative z-10">
         <div className="max-w-screen-2xl mx-auto">
-          <Header dateRange={dateRange} setDateRange={setDateRange} />
+          <Header
+            dateRange={dateRange}
+            setDateRange={setDateRange}
+            onRefresh={refreshData}
+            isRefreshing={isRefreshing}
+          />
 
           <main>
             <div className="col-span-12 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 mb-6">
-              <SparklineCard title="DAU" value={latestMetric?.dau.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.dau || 0, prevMetric?.dau)} data={metrics.map(m => ({ v: m.dau }))} dataKey="v" strokeColor="#388BFD" />
-              <SparklineCard title="Revenue" value={`$${latestMetric?.revenue.toLocaleString() || 'N/A'}`} change={calculateChange(latestMetric?.revenue || 0, prevMetric?.revenue)} data={metrics.map(m => ({ v: m.revenue }))} dataKey="v" strokeColor="#1F883D" />
+              <SparklineCard title="Daily Mentions" value={latestMetric?.dailyMentions.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.dailyMentions || 0, prevMetric?.dailyMentions)} data={metrics.map(m => ({ v: m.dailyMentions }))} dataKey="v" strokeColor="#388BFD" />
+              <SparklineCard title="Engagement" value={latestMetric?.engagementScore.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.engagementScore || 0, prevMetric?.engagementScore)} data={metrics.map(m => ({ v: m.engagementScore }))} dataKey="v" strokeColor="#1F883D" />
               <SparklineCard title="Likes" value={latestMetric?.likes.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.likes || 0, prevMetric?.likes)} data={metrics.map(m => ({ v: m.likes }))} dataKey="v" strokeColor="#DB61A2" />
-              <SparklineCard title="Shares" value={latestMetric?.shares.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.shares || 0, prevMetric?.shares)} data={metrics.map(m => ({ v: m.shares }))} dataKey="v" strokeColor="#A371F7" />
+              <SparklineCard title="Comments" value={latestMetric?.totalComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.totalComments || 0, prevMetric?.totalComments)} data={metrics.map(m => ({ v: m.totalComments }))} dataKey="v" strokeColor="#A371F7" />
               <SparklineCard title="Reach" value={latestMetric?.reach.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.reach || 0, prevMetric?.reach)} data={metrics.map(m => ({ v: m.reach }))} dataKey="v" strokeColor="#F0883E" />
-              <SparklineCard title="Retention" value={`${((latestMetric?.retention || 0) * 100).toFixed(1)}%`} change={calculateChange(latestMetric?.retention || 0, prevMetric?.retention)} data={metrics.map(m => ({ v: m.retention }))} dataKey="v" strokeColor="#3BBDD0" />
+              <SparklineCard title="Sentiment" value={`${latestMetric?.sentimentPercent || 50}%`} change={calculateChange(latestMetric?.sentimentPercent || 50, prevMetric?.sentimentPercent || 50)} data={metrics.map(m => ({ v: m.sentimentPercent }))} dataKey="v" strokeColor="#3BBDD0" />
               <SparklineCard title="Negative Comments" value={latestMetric?.negativeComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.negativeComments || 0, prevMetric?.negativeComments)} changeType="negative" data={metrics.map(m => ({ v: m.negativeComments }))} dataKey="v" strokeColor="#F85149" />
             </div>
 
@@ -107,25 +228,25 @@ const App: React.FC = () => {
               </div>
 
               <div className="col-span-12 lg:col-span-4">
-                <ActivityCenter 
-                    activities={activities} 
-                    onActivitySelect={handleSelectActivity} 
+                <ActivityCenter
+                    activities={activities}
+                    onActivitySelect={handleSelectActivity}
                     selectedActivityId={selectedActivity?.id}
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <AiStrategicBrief />
-               <CommunityPulse 
-                    comments={comments} 
+               <CommunityPulse
+                    comments={comments}
                     onOpenModal={() => setIsCommentModalOpen(true)}
                 />
             </div>
           </main>
         </div>
       </div>
-      
+
       <button
         onClick={() => setIsChatOpen(true)}
         title="Discuss with AI"
@@ -135,13 +256,13 @@ const App: React.FC = () => {
         <img src="https://storage.googleapis.com/corepunk-static/pages/logos/game-logo-header@2x.webp" alt="AI Chat" className="w-12 h-12"/>
       </button>
 
-      <FloatingAiChat 
-        isOpen={isChatOpen} 
+      <FloatingAiChat
+        isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         context={{ metrics, activities, comments }}
       />
-      
-      <ActivityDetailModal 
+
+      <ActivityDetailModal
         activity={selectedActivity}
         allMetrics={allMetrics}
         allComments={allComments}

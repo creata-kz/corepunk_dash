@@ -8,9 +8,9 @@ class AiService {
   private isInitialized = false;
 
   constructor() {
-    if (process.env.API_KEY) {
+    if (process.env.GEMINI_API_KEY) {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         this.chat = ai.chats.create({
           model: 'gemini-2.5-flash',
           config: {

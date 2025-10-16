@@ -21,13 +21,21 @@ export interface ProductionActivity {
 
 export interface DailyMetric {
   date: string; // YYYY-MM-DD format
-  dau: number;
-  revenue: number;
-  retention: number;
-  negativeComments: number;
-  likes: number;
-  shares: number;
-  reach: number;
+
+  // Social metrics (replacing game metrics)
+  dailyMentions: number;      // Replaces DAU - total posts + comments
+  engagementScore: number;    // Replaces Revenue - calculated engagement
+  sentimentPercent: number;   // Replaces Retention - % of positive comments
+
+  // Existing social metrics
+  likes: number;              // Upvotes, likes across platforms
+  totalComments: number;      // Replaces Shares - total comments
+  reach: number;              // Views, impressions
+  negativeComments: number;   // Negative sentiment comments
+
+  // Helper fields for calculations
+  positiveComments?: number;  // For sentiment calculation
+  posts?: number;             // For dailyMentions calculation
 }
 
 export type Sentiment = "Positive" | "Negative" | "Neutral";

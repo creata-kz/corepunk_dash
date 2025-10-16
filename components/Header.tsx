@@ -4,6 +4,8 @@ import { DateRange } from '../types';
 interface HeaderProps {
     dateRange: DateRange;
     setDateRange: (range: DateRange) => void;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
 }
 
 const DateRangePicker: React.FC<{ value: DateRange, onChange: (value: DateRange) => void }> = ({ value, onChange }) => {
@@ -32,7 +34,12 @@ const DateRangePicker: React.FC<{ value: DateRange, onChange: (value: DateRange)
     );
 };
 
-export const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
+export const Header: React.FC<HeaderProps> = ({
+    dateRange,
+    setDateRange,
+    onRefresh,
+    isRefreshing = false
+}) => {
     return (
         <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
             <div className="flex items-center gap-4">
@@ -42,7 +49,32 @@ export const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
                     <p className="text-brand-text-secondary mt-1">Analytics & Community Pulse</p>
                 </div>
             </div>
-            <div className="flex items-center space-x-4 mt-4 md:mt-0">
+            <div className="flex items-center space-x-3 mt-4 md:mt-0">
+                {onRefresh && (
+                    <button
+                        onClick={onRefresh}
+                        disabled={isRefreshing}
+                        className="px-4 py-2 bg-brand-surface hover:bg-brand-surface-2 disabled:opacity-50 disabled:cursor-not-allowed border border-brand-border rounded-lg transition-colors flex items-center gap-2"
+                        title="Refresh data"
+                    >
+                        <svg
+                            className={`w-4 h-4 text-brand-text-secondary ${isRefreshing ? 'animate-spin' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                            />
+                        </svg>
+                        <span className="text-sm font-medium text-brand-text-secondary">
+                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                        </span>
+                    </button>
+                )}
                 <DateRangePicker value={dateRange} onChange={setDateRange} />
             </div>
         </header>
