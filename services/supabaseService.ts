@@ -309,7 +309,7 @@ class SupabaseService {
   }
 
   /**
-   * Получение событий (для построения активностей)
+   * Получение событий (постов и комментариев пользователей для Activity Feed)
    */
   public async getActivities(days: number = 90): Promise<ProductionActivity[]> {
     if (!this.isConnected() || !this.client) {
@@ -321,15 +321,12 @@ class SupabaseService {
       startDate.setDate(startDate.getDate() - days);
       const startDateStr = startDate.toISOString();
 
-      // Получаем релевантные события, которые можно интерпретировать как активности
+      // Получаем посты и комментарии из всех платформ
       const { data, error } = await this.client
         .from('events')
         .select('*')
         .gte('event_timestamp', startDateStr)
-        .in('event_type', [
-          'release', 'hotfix', 'marketing_campaign',
-          'community_event', 'pr_publication'
-        ])
+        .or('event_type.like.%post%,event_type.like.%comment%')
         .order('event_timestamp', { ascending: false })
         .limit(100);
 
@@ -477,15 +474,33 @@ class SupabaseService {
     return events.map((event, index) => {
       const props = event.properties || {};
 
+      // Извлекаем автора и анонимизируем
+      const author = props.author || props.author_name || props.username || 'Anonymous';
+      const anonymizedAuthor = this.anonymizeUsername(author);
+
+      // Извлекаем текст поста или комментария
+      const text = props.title ||
+                   props.selftext ||
+                   props.comment_text ||
+                   props.comment_body ||
+                   props.text ||
+                   'No content';
+
+      // Определяем тип активности
+      const isPost = event.event_type.includes('post');
+      const activityType = isPost ? 'Post' : 'Comment';
+
+      // Формируем описание: "Username: Preview of text..."
+      const textPreview = text.length > 60 ? text.substring(0, 60) + '...' : text;
+      const description = `${anonymizedAuthor}: ${textPreview}`;
+
       return {
         id: index + 1,
-        type: this.mapEventTypeToActivityType(event.event_type),
+        type: ProductionActivityType.CommunityEvent, // Все пользовательский контент = Community Event
         date: event.event_timestamp.split('T')[0],
-        startDate: props.start_date,
-        endDate: props.end_date,
-        description: props.description || props.title || event.event_type,
-        status: this.determineActivityStatus(event.event_timestamp, props),
-        platforms: props.platforms || [event.platform],
+        description: description,
+        status: 'Completed' as const,
+        platforms: [this.capitalizeFirstLetter(event.platform)],
       };
     });
   }
@@ -598,6 +613,53 @@ class SupabaseService {
 
   private capitalizeFirstLetter(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  /**
+   * Анонимизирует username, заменяя середину звездочками
+   * Примеры:
+   *   Teigun@gmail.com → Te****n@gmail.com
+   *   JohnDoe123 → Jo*****23
+   *   Bob → B*b
+   */
+  private anonymizeUsername(username: string): string {
+    if (!username || username === 'Anonymous' || username === '[deleted]') {
+      return 'Anonymous';
+    }
+
+    // Удаляем префиксы типа "reddit_" или "youtube_"
+    const cleanUsername = username.replace(/^(reddit_|youtube_|vk_|discord_)/i, '');
+
+    if (cleanUsername.length <= 3) {
+      // Для коротких имён показываем первую и последнюю букву
+      return cleanUsername[0] + '*' + (cleanUsername.length > 1 ? cleanUsername[cleanUsername.length - 1] : '');
+    }
+
+    // Для email адресов
+    if (cleanUsername.includes('@')) {
+      const [localPart, domain] = cleanUsername.split('@');
+      const anonymizedLocal = this.anonymizeString(localPart);
+      return `${anonymizedLocal}@${domain}`;
+    }
+
+    // Для обычных username
+    return this.anonymizeString(cleanUsername);
+  }
+
+  /**
+   * Анонимизирует строку, оставляя начало и конец
+   */
+  private anonymizeString(str: string): string {
+    if (str.length <= 3) {
+      return str[0] + '*'.repeat(str.length - 1);
+    }
+
+    const visibleChars = Math.max(2, Math.floor(str.length * 0.25)); // 25% от длины, минимум 2
+    const start = str.substring(0, visibleChars);
+    const end = str.substring(str.length - visibleChars);
+    const middleLength = str.length - (visibleChars * 2);
+
+    return `${start}${'*'.repeat(Math.max(4, middleLength))}${end}`;
   }
 }
 
