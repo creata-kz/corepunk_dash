@@ -363,11 +363,19 @@ class SupabaseService {
       const startDateStr = startDate.toISOString();
 
       // Получаем ВСЕ посты и комментарии из всех платформ
+      // Используем in() вместо or() для правильной фильтрации
       const { data, error } = await this.client
         .from('events')
         .select('*')
         .gte('event_timestamp', startDateStr)
-        .or('event_type.like.%post%,event_type.like.%comment%')
+        .in('event_type', [
+          'reddit_post_mention',
+          'reddit_comment_mention',
+          'comment_mention',
+          'comment_created',
+          'video_mention',
+          'message_created'
+        ])
         .order('event_timestamp', { ascending: false })
         .limit(500);
 
