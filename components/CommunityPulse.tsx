@@ -1,8 +1,9 @@
 
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Comment } from '../types';
-import { CommentCard } from './CommentCard';
+import { Comment, PostWithComments } from '../types';
+import { PostWithCommentsModal } from './PostWithCommentsModal';
+import { AllPostsModal } from './AllPostsModal';
 
 interface CommunityPulseProps {
     comments: Comment[];
@@ -10,6 +11,8 @@ interface CommunityPulseProps {
 }
 
 export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpenModal }) => {
+    const [selectedPost, setSelectedPost] = useState<PostWithComments | null>(null);
+    const [showAllPosts, setShowAllPosts] = useState(false);
     const [displayScore, setDisplayScore] = useState(0);
 
     const { sentimentScore, overall } = useMemo(() => {
@@ -40,19 +43,49 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
         return () => clearTimeout(timer);
     }, [sentimentScore]);
 
-    const keyComments = useMemo(() => {
-        // Сортируем по важности (score + likes + views)
-        const sortedByImportance = [...comments].sort((a, b) => {
-            const aScore = (a.metadata?.score || 0) + (a.metadata?.likes || 0) + ((a.metadata?.views || 0) / 100);
-            const bScore = (b.metadata?.score || 0) + (b.metadata?.likes || 0) + ((b.metadata?.views || 0) / 100);
-            return bScore - aScore;
+    // Группируем комментарии по постам
+    const postsWithComments = useMemo(() => {
+        const postsMap = new Map<string, Comment>();
+        const commentsByPostId = new Map<string, Comment[]>();
+
+        // Сначала собираем все посты и комментарии
+        comments.forEach(item => {
+            if (item.metadata?.is_post && item.metadata?.post_id) {
+                // Это пост - используем его post_id как ключ
+                postsMap.set(item.metadata.post_id, item);
+            } else if (!item.metadata?.is_post && item.metadata?.post_id) {
+                // Это комментарий - группируем по post_id
+                const postId = item.metadata.post_id;
+                if (!commentsByPostId.has(postId)) {
+                    commentsByPostId.set(postId, []);
+                }
+                commentsByPostId.get(postId)!.push(item);
+            }
         });
 
-        // Берем самый важный позитивный и негативный комментарий
-        const positive = sortedByImportance.find(c => c.sentiment === 'Positive');
-        const negative = sortedByImportance.find(c => c.sentiment === 'Negative');
-        return { positive, negative };
+        // Создаем PostWithComments для каждого поста
+        const result: PostWithComments[] = Array.from(postsMap.entries()).map(([postId, post]) => {
+            const postComments = commentsByPostId.get(postId) || [];
+
+            return {
+                post,
+                comments: postComments,
+                totalComments: postComments.length
+            };
+        });
+
+        // Сортируем по важности (score + количество комментариев)
+        return result.sort((a, b) => {
+            const aScore = (a.post.metadata?.score || 0) + (a.totalComments * 5);
+            const bScore = (b.post.metadata?.score || 0) + (b.totalComments * 5);
+            return bScore - aScore;
+        });
     }, [comments]);
+
+    // Топ посты для показа
+    const topPosts = useMemo(() => {
+        return postsWithComments.slice(0, 2);
+    }, [postsWithComments]);
     
     const overallSentimentStyles = {
         Positive: 'text-teal-400',
@@ -85,21 +118,58 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
                 </div>
 
                 <div>
-                    <h4 className="text-sm font-semibold text-brand-text-secondary mb-2">Key Comments</h4>
+                    <h4 className="text-sm font-semibold text-brand-text-secondary mb-2">Top Posts</h4>
                     <div className="space-y-2">
-                        {keyComments.positive && <CommentCard comment={keyComments.positive} withBorder={false} />}
-                        {keyComments.negative && <CommentCard comment={keyComments.negative} withBorder={false} />}
-                        {!keyComments.positive && !keyComments.negative && <p className="text-sm text-brand-text-secondary text-center py-4">No comments available.</p>}
+                        {topPosts.length > 0 ? topPosts.map(postData => (
+                            <div
+                                key={postData.post.id}
+                                onClick={() => setSelectedPost(postData)}
+                                className="bg-white/5 p-3 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
+                            >
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded border ${
+                                        postData.post.source === 'Reddit' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+                                        postData.post.source === 'Youtube' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                        postData.post.source === 'Tiktok' ? 'bg-pink-500/20 text-pink-400 border-pink-500/30' :
+                                        'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                                    }`}>
+                                        {postData.post.source}
+                                    </span>
+                                    <span className="text-xs text-brand-text-secondary">{postData.totalComments} comments</span>
+                                </div>
+                                <p className="text-sm text-brand-text-primary font-medium line-clamp-2">{postData.post.text}</p>
+                                <div className="flex items-center gap-3 mt-2 text-xs text-brand-text-secondary">
+                                    <span>{postData.post.author}</span>
+                                    {postData.post.metadata?.score && <span>↑ {postData.post.metadata.score}</span>}
+                                </div>
+                            </div>
+                        )) : (
+                            <p className="text-sm text-brand-text-secondary text-center py-4">No posts available.</p>
+                        )}
                     </div>
                 </div>
             </div>
 
             <button
-                onClick={onOpenModal}
+                onClick={() => setShowAllPosts(true)}
                 className="w-full mt-3 bg-white/5 hover:bg-white/10 text-brand-text-primary font-bold py-2 px-4 rounded-md transition-colors duration-200"
             >
-                View All Comments
+                View All Posts
             </button>
+
+            {/* Modal for individual post with comments */}
+            <PostWithCommentsModal
+                isOpen={selectedPost !== null}
+                onClose={() => setSelectedPost(null)}
+                postData={selectedPost}
+            />
+
+            {/* Modal for all posts list */}
+            <AllPostsModal
+                isOpen={showAllPosts}
+                onClose={() => setShowAllPosts(false)}
+                posts={postsWithComments}
+            />
         </div>
     );
 };

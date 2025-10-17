@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { DailyMetric, ProductionActivity, Comment, ChatMessage, DateRange } from './types';
+import { DailyMetric, ProductionActivity, Comment, ChatMessage, DateRange, CustomDateRange } from './types';
 import { generateInitialActivities, generateMetrics, generateComments } from './services/mockDataService';
 import { supabaseService } from './services/supabaseService';
 import { SparklineCard } from './components/SparklineCard';
@@ -28,7 +28,8 @@ const App: React.FC = () => {
   const [dataSource, setDataSource] = useState<'mock' | 'supabase'>('mock');
 
   // Control State
-  const [dateRange, setDateRange] = useState<DateRange>('30d');
+  const [dateRange, setDateRange] = useState<DateRange>('all');
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ProductionActivity | null>(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
@@ -64,7 +65,7 @@ const App: React.FC = () => {
         ]);
 
         // Check if we have any data
-        if (metrics.length > 0 || activities.length > 0) {
+        if (metrics.length > 0 || activities.length > 0 || comments.length > 0) {
           setAllMetrics(metrics);
           setAllActivities(activities);
           setAllComments(comments);
@@ -74,6 +75,15 @@ const App: React.FC = () => {
             activities: activities.length,
             comments: comments.length
           });
+          if (metrics.length > 0) {
+            console.log(`   Metrics date range: ${metrics[0].date} to ${metrics[metrics.length - 1].date}`);
+            console.log(`   Sample metrics:`, metrics.slice(0, 3).map(m => ({
+              date: m.date,
+              dailyMentions: m.dailyMentions,
+              likes: m.likes,
+              reach: m.reach
+            })));
+          }
         } else {
           // Database is empty, use mock data
           console.warn('⚠️ Supabase database is empty, using mock data');
@@ -133,26 +143,46 @@ const App: React.FC = () => {
 
   // Filter data by date range
   const { activities, metrics, comments } = useMemo(() => {
-    const rangeMap = { '7d': 7, '30d': 30, '90d': 90 };
-    const days = rangeMap[dateRange];
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - days);
+    let startStr: string;
+    let endStr: string = todayStr;
 
-    const startStr = startDate.toISOString().split('T')[0];
+    // Determine date range
+    if (dateRange === 'today') {
+      // Show only today's data
+      startStr = todayStr;
+    } else if (dateRange === 'all') {
+      // Show all available data (no filtering)
+      const filteredMetrics = allMetrics;
+      const filteredActivities = allActivities;
+      const filteredComments = allComments;
+      console.log(`📅 Date filter: ALL - Metrics: ${filteredMetrics.length}, Activities: ${filteredActivities.length}, Comments: ${filteredComments.length}`);
+      return { metrics: filteredMetrics, activities: filteredActivities, comments: filteredComments };
+    } else if (dateRange === 'custom' && customDateRange) {
+      // Use custom date range
+      startStr = customDateRange.startDate;
+      endStr = customDateRange.endDate;
+    } else {
+      // Fallback to "all" if custom is selected but no range is set
+      return { metrics: allMetrics, activities: allActivities, comments: allComments };
+    }
 
-    const filteredMetrics = allMetrics.filter(m => m.date >= startStr);
-    const filteredActivities = allActivities.filter(a => a.date >= startStr);
-
-    // Comments are now independent - filter by timestamp, not by activityId
+    // Filter data by date range
+    const filteredMetrics = allMetrics.filter(m => m.date >= startStr && m.date <= endStr);
+    const filteredActivities = allActivities.filter(a => a.date >= startStr && a.date <= endStr);
     const filteredComments = allComments.filter(c => {
       const commentDate = c.timestamp.split('T')[0];
-      return commentDate >= startStr;
+      return commentDate >= startStr && commentDate <= endStr;
     });
 
+    console.log(`📅 Date filter: ${dateRange} (${startStr} to ${endStr}) - Metrics: ${filteredMetrics.length}, Activities: ${filteredActivities.length}, Comments: ${filteredComments.length}`);
+    if (filteredMetrics.length > 0) {
+      console.log(`   Latest metric date: ${filteredMetrics[filteredMetrics.length - 1].date}, dailyMentions: ${filteredMetrics[filteredMetrics.length - 1].dailyMentions}`);
+    }
+
     return { metrics: filteredMetrics, activities: filteredActivities, comments: filteredComments };
-  }, [dateRange, allMetrics, allActivities, allComments]);
+  }, [dateRange, customDateRange, allMetrics, allActivities, allComments]);
 
   const handleSelectActivity = (activity: ProductionActivity) => {
     setSelectedActivity(activity.id === selectedActivity?.id ? null : activity);
@@ -209,6 +239,8 @@ const App: React.FC = () => {
           <Header
             dateRange={dateRange}
             setDateRange={setDateRange}
+            customDateRange={customDateRange}
+            setCustomDateRange={setCustomDateRange}
             onRefresh={refreshData}
             isRefreshing={isRefreshing}
           />

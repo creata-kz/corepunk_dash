@@ -1,5 +1,5 @@
 import React from 'react';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface SparklineCardProps {
   title: string;
@@ -43,8 +43,18 @@ export const SparklineCard: React.FC<SparklineCardProps> = ({ title, value, chan
       <div className="h-1/3 w-full mt-2">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={last7DaysData}>
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                border: '1px solid rgba(75, 85, 99, 0.5)',
+                borderRadius: '8px',
+                fontSize: '12px',
+                color: '#E5E7EB'
+              }}
+              labelStyle={{ color: '#9CA3AF' }}
+              cursor={{ stroke: strokeColor, strokeWidth: 1, strokeDasharray: '5 5' }}
+            />
             <Line type="monotone" dataKey={dataKey} stroke={strokeColor} strokeWidth={2} dot={false} />
-{/* FIX: Corrected typo in the closing tag for LineChart. */}
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -369,19 +369,12 @@ class SupabaseService {
       const startDateStr = startDate.toISOString();
 
       // Получаем ВСЕ посты и комментарии из всех платформ
-      // Используем in() вместо or() для правильной фильтрации
+      // Используем простую фильтрацию - исключаем только официальные события и snapshots
       const { data, error } = await this.client
         .from('events')
         .select('*')
         .gte('event_timestamp', startDateStr)
-        .in('event_type', [
-          'reddit_post_mention',
-          'reddit_comment_mention',
-          'comment_mention',
-          'comment_created',
-          'video_mention',
-          'message_created'
-        ])
+        .not('event_type', 'in', '(release,hotfix,marketing_campaign,community_event,pr_publication,video_stats_snapshot)')
         .order('event_timestamp', { ascending: false })
         .limit(500);
 
@@ -562,6 +555,19 @@ class SupabaseService {
       const likes = props.like_count || props.likes || 0;
       const views = props.view_count || props.views || 0;
 
+      // Определяем, это пост или комментарий
+      const isPost = event.event_type.includes('post') || event.event_type === 'video_mention';
+
+      // Определяем post_id в зависимости от платформы и типа события
+      let postId: string | undefined;
+      if (isPost) {
+        // Для постов используем их собственный ID
+        postId = props.post_id || props.video_id || event.content_id || event.external_event_id;
+      } else {
+        // Для комментариев используем ID родительского поста
+        postId = props.post_id || props.video_id;
+      }
+
       return {
         id: index + 1,
         activityId: 0, // Не привязываем к activity
@@ -571,12 +577,15 @@ class SupabaseService {
         userType: this.determineUserType(event.platform),
         source: this.capitalizeFirstLetter(event.platform),
         timestamp: event.event_timestamp,
-        // Добавляем метрики для сортировки (не в типе Comment, но можем использовать)
+        // Добавляем метрики для сортировки
         metadata: {
           score,
           likes,
           views,
           url: props.url || props.permalink,
+          is_post: isPost,
+          post_id: postId,
+          post_title: props.post_title || (isPost ? text : null),
         }
       };
     });

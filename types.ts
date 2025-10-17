@@ -56,7 +56,17 @@ export interface Comment {
         likes?: number;
         views?: number;
         url?: string;
+        post_id?: string; // ID поста (для Reddit комментариев)
+        post_title?: string; // Заголовок поста (для Reddit комментариев)
+        is_post?: boolean; // Это пост или комментарий
     };
+}
+
+// Группированный пост с комментариями
+export interface PostWithComments {
+    post: Comment; // Сам пост
+    comments: Comment[]; // Комментарии к посту
+    totalComments: number;
 }
 
 export interface ChatMessage {
@@ -64,4 +74,9 @@ export interface ChatMessage {
     text: string;
 }
 
-export type DateRange = '7d' | '30d' | '90d';
+export type DateRange = 'today' | 'all' | 'custom';
+
+export interface CustomDateRange {
+    startDate: string; // YYYY-MM-DD
+    endDate: string;   // YYYY-MM-DD
+}
