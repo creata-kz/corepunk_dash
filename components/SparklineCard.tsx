@@ -1,5 +1,6 @@
 import React from 'react';
-import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, Tooltip, TooltipProps } from 'recharts';
+import { DailyMetric } from '../types';
 
 interface SparklineCardProps {
   title: string;
@@ -9,6 +10,8 @@ interface SparklineCardProps {
   data: any[];
   dataKey: string;
   strokeColor: string;
+  fullMetrics?: DailyMetric[]; // Полные метрики с byPlatform
+  metricKey?: keyof DailyMetric; // Какую метрику показывать ('likes', 'reach', и т.д.)
 }
 
 const ArrowUpIcon: React.FC = () => (
@@ -23,10 +26,108 @@ const ArrowDownIcon: React.FC = () => (
     </svg>
 );
 
-export const SparklineCard: React.FC<SparklineCardProps> = ({ title, value, change, changeType = 'positive', data, dataKey, strokeColor }) => {
+// Custom tooltip для показа платформ
+const CustomTooltip: React.FC<TooltipProps<number, string> & {
+  fullMetrics?: DailyMetric[],
+  metricKey?: string,
+  title?: string
+}> = ({ active, payload, fullMetrics, metricKey, title }) => {
+  if (!active || !payload || !payload[0] || !fullMetrics || !metricKey) {
+    return null;
+  }
+
+  // Находим индекс точки в данных (это локальный индекс в last7DaysMetrics)
+  const localIndex = payload[0].payload.index;
+  if (localIndex === undefined || localIndex < 0 || localIndex >= fullMetrics.length) {
+    return null;
+  }
+
+  const metric = fullMetrics[localIndex];
+  const byPlatform = metric.byPlatform;
+
+  // Если нет данных по платформам, показываем обычный tooltip
+  if (!byPlatform || Object.keys(byPlatform).length === 0) {
+    return (
+      <div className="bg-brand-surface border border-brand-border rounded-lg p-2 text-xs z-[9999] relative">
+        <p className="text-brand-text-secondary">{metric.date}</p>
+        <p className="text-brand-text-primary font-semibold">{title}: {payload[0].value}</p>
+        <p className="text-red-400 text-[10px] mt-1">No platform data</p>
+      </div>
+    );
+  }
+
+  // Маппинг ключей метрик на ключи в byPlatform
+  const metricKeyMap: Record<string, keyof typeof byPlatform[string] | undefined> = {
+    'dailyMentions': 'dailyMentions',
+    'likes': 'likes',
+    'totalComments': 'comments',
+    'reach': 'reach',
+    'negativeComments': 'negativeComments',
+    'engagementScore': undefined, // Engagement Score не имеет breakdown по платформам
+    'sentimentPercent': undefined, // Sentiment также не имеет breakdown
+  };
+
+  const platformKey = metricKeyMap[metricKey];
+
+  // Если метрика не имеет platform breakdown, показываем простой tooltip
+  if (!platformKey) {
+    return (
+      <div className="bg-brand-surface border border-brand-border rounded-lg p-2 text-xs z-[9999] relative">
+        <p className="text-brand-text-secondary">{metric.date}</p>
+        <p className="text-brand-text-primary font-semibold">{title}: {payload[0].value}</p>
+      </div>
+    );
+  }
+
+  // Сортируем платформы по значению метрики (от большего к меньшему)
+  const allPlatforms = Object.entries(byPlatform)
+    .map(([platform, metrics]) => ({ platform, value: metrics[platformKey] || 0 }));
+
+  const sortedPlatforms = allPlatforms
+    .filter(item => item.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  return (
+    <div className="bg-brand-surface border border-brand-border rounded-lg p-3 text-xs shadow-xl z-[9999] relative">
+      <p className="text-brand-text-secondary mb-2 font-medium">{metric.date}</p>
+      <p className="text-brand-text-primary font-bold mb-2">{title}: {payload[0].value?.toLocaleString()}</p>
+      {sortedPlatforms.length > 0 && (
+        <div className="border-t border-brand-border pt-2 mt-1">
+          <p className="text-brand-text-secondary text-[10px] mb-1 uppercase tracking-wide">По платформам:</p>
+          {sortedPlatforms.map(({ platform, value }) => (
+            <div key={platform} className="flex justify-between items-center py-0.5">
+              <span className="text-brand-text-secondary">{platform}:</span>
+              <span className="text-brand-text-primary font-semibold ml-2">{value.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const SparklineCard: React.FC<SparklineCardProps> = ({
+  title,
+  value,
+  change,
+  changeType = 'positive',
+  data,
+  dataKey,
+  strokeColor,
+  fullMetrics,
+  metricKey
+}) => {
   const isPositive = change >= 0;
   const changeColor = (changeType === 'positive' ? isPositive : !isPositive) ? 'text-green-400' : 'text-red-400';
-  const last7DaysData = data.slice(-7);
+
+  // Добавляем локальные индексы к данным (0, 1, 2, ..., 6 для последних 7 дней)
+  const last7DaysData = data.slice(-7).map((item, idx) => ({
+    ...item,
+    index: idx // Локальный индекс в пределах last7DaysMetrics
+  }));
+
+  // Получаем последние 7 дней из fullMetrics
+  const last7DaysMetrics = fullMetrics ? fullMetrics.slice(-7) : undefined;
 
   return (
     <div className="glass-card p-4 rounded-xl flex flex-col justify-between h-32">
@@ -44,15 +145,9 @@ export const SparklineCard: React.FC<SparklineCardProps> = ({ title, value, chan
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={last7DaysData}>
             <Tooltip
-              contentStyle={{
-                backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                border: '1px solid rgba(75, 85, 99, 0.5)',
-                borderRadius: '8px',
-                fontSize: '12px',
-                color: '#E5E7EB'
-              }}
-              labelStyle={{ color: '#9CA3AF' }}
+              content={<CustomTooltip fullMetrics={last7DaysMetrics} metricKey={metricKey} title={title} />}
               cursor={{ stroke: strokeColor, strokeWidth: 1, strokeDasharray: '5 5' }}
+              wrapperStyle={{ zIndex: 99999, position: 'relative' }}
             />
             <Line type="monotone" dataKey={dataKey} stroke={strokeColor} strokeWidth={2} dot={false} />
           </LineChart>

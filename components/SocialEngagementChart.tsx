@@ -27,7 +27,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export const SocialEngagementChart: React.FC<SocialEngagementChartProps> = ({ metrics, activities, highlightedActivity }) => {
   
   return (
-    <div className="glass-card p-6 rounded-xl h-80">
+    <div className="glass-card p-6 rounded-xl h-80 relative z-10">
       <h3 className="text-3xl font-semibold text-brand-text-primary mb-4">Social Engagement Overview</h3>
       <ResponsiveContainer width="100%" height="90%">
         <AreaChart 

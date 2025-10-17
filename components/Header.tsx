@@ -26,6 +26,11 @@ const DateRangePicker: React.FC<{
         { id: 'custom', label: 'Custom' },
     ];
 
+    const handleRangeChange = (range: DateRange) => {
+        console.log(`🎯 DateRangePicker: Changing from "${value}" to "${range}"`);
+        onChange(range);
+    };
+
     const handleCustomClick = () => {
         if (value !== 'custom') {
             onChange('custom');
@@ -62,7 +67,7 @@ const DateRangePicker: React.FC<{
                 {ranges.map(range => (
                     <button
                         key={range.id}
-                        onClick={() => range.id === 'custom' ? handleCustomClick() : onChange(range.id)}
+                        onClick={() => range.id === 'custom' ? handleCustomClick() : handleRangeChange(range.id)}
                         className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                             value === range.id
                                 ? 'bg-brand-primary text-white'

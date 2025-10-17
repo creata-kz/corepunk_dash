@@ -34,6 +34,11 @@ const App: React.FC = () => {
   const [selectedActivity, setSelectedActivity] = useState<ProductionActivity | null>(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
 
+  // Debug: log date range changes
+  useEffect(() => {
+    console.log(`⏰ App: dateRange changed to "${dateRange}"`, customDateRange ? `with custom range: ${customDateRange.startDate} to ${customDateRange.endDate}` : '');
+  }, [dateRange, customDateRange]);
+
   // Load mock data fallback
   const useMockData = useCallback(() => {
     console.log('📦 Loading mock data...');
@@ -176,9 +181,11 @@ const App: React.FC = () => {
       return commentDate >= startStr && commentDate <= endStr;
     });
 
-    console.log(`📅 Date filter: ${dateRange} (${startStr} to ${endStr}) - Metrics: ${filteredMetrics.length}, Activities: ${filteredActivities.length}, Comments: ${filteredComments.length}`);
+    console.log(`📅 Date filter: ${dateRange} (${startStr} to ${endStr})`);
+    console.log(`   Metrics: ${filteredMetrics.length}, Activities: ${filteredActivities.length}, Comments: ${filteredComments.length}`);
     if (filteredMetrics.length > 0) {
-      console.log(`   Latest metric date: ${filteredMetrics[filteredMetrics.length - 1].date}, dailyMentions: ${filteredMetrics[filteredMetrics.length - 1].dailyMentions}`);
+      const latest = filteredMetrics[filteredMetrics.length - 1];
+      console.log(`   Latest: ${latest.date} - mentions:${latest.dailyMentions}, engagement:${latest.engagementScore}, likes:${latest.likes}, reach:${latest.reach}`);
     }
 
     return { metrics: filteredMetrics, activities: filteredActivities, comments: filteredComments };
@@ -192,6 +199,37 @@ const App: React.FC = () => {
     setSelectedActivity(null);
   }
 
+  // Aggregate metrics for the selected period
+  const aggregatedMetrics = useMemo(() => {
+    if (metrics.length === 0) return null;
+
+    // Sum all metrics for the period
+    const totals = metrics.reduce((acc, m) => ({
+      dailyMentions: acc.dailyMentions + m.dailyMentions,
+      engagementScore: acc.engagementScore + m.engagementScore,
+      sentimentPercent: acc.sentimentPercent + m.sentimentPercent,
+      likes: acc.likes + m.likes,
+      totalComments: acc.totalComments + m.totalComments,
+      reach: acc.reach + m.reach,
+      negativeComments: acc.negativeComments + m.negativeComments,
+    }), {
+      dailyMentions: 0,
+      engagementScore: 0,
+      sentimentPercent: 0,
+      likes: 0,
+      totalComments: 0,
+      reach: 0,
+      negativeComments: 0,
+    });
+
+    // Calculate average sentiment
+    totals.sentimentPercent = Math.round(totals.sentimentPercent / metrics.length);
+
+    console.log(`📊 Aggregated metrics for ${metrics.length} days:`, totals);
+    return totals;
+  }, [metrics]);
+
+  // Get last two periods for comparison (for change percentage)
   const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
   const prevMetric = metrics.length > 1 ? metrics[metrics.length - 2] : null;
 
@@ -247,13 +285,13 @@ const App: React.FC = () => {
 
           <main>
             <div className="col-span-12 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 mb-6">
-              <SparklineCard title="Daily Mentions" value={latestMetric?.dailyMentions.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.dailyMentions || 0, prevMetric?.dailyMentions)} data={metrics.map(m => ({ v: m.dailyMentions }))} dataKey="v" strokeColor="#388BFD" />
-              <SparklineCard title="Engagement" value={latestMetric?.engagementScore.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.engagementScore || 0, prevMetric?.engagementScore)} data={metrics.map(m => ({ v: m.engagementScore }))} dataKey="v" strokeColor="#1F883D" />
-              <SparklineCard title="Likes" value={latestMetric?.likes.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.likes || 0, prevMetric?.likes)} data={metrics.map(m => ({ v: m.likes }))} dataKey="v" strokeColor="#DB61A2" />
-              <SparklineCard title="Comments" value={latestMetric?.totalComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.totalComments || 0, prevMetric?.totalComments)} data={metrics.map(m => ({ v: m.totalComments }))} dataKey="v" strokeColor="#A371F7" />
-              <SparklineCard title="Reach" value={latestMetric?.reach.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.reach || 0, prevMetric?.reach)} data={metrics.map(m => ({ v: m.reach }))} dataKey="v" strokeColor="#F0883E" />
-              <SparklineCard title="Sentiment" value={`${latestMetric?.sentimentPercent || 50}%`} change={calculateChange(latestMetric?.sentimentPercent || 50, prevMetric?.sentimentPercent || 50)} data={metrics.map(m => ({ v: m.sentimentPercent }))} dataKey="v" strokeColor="#3BBDD0" />
-              <SparklineCard title="Negative Comments" value={latestMetric?.negativeComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.negativeComments || 0, prevMetric?.negativeComments)} changeType="negative" data={metrics.map(m => ({ v: m.negativeComments }))} dataKey="v" strokeColor="#F85149" />
+              <SparklineCard title="Daily Mentions" value={aggregatedMetrics?.dailyMentions.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.dailyMentions || 0, prevMetric?.dailyMentions)} data={metrics.map(m => ({ v: m.dailyMentions }))} dataKey="v" strokeColor="#388BFD" fullMetrics={metrics} metricKey="dailyMentions" />
+              <SparklineCard title="Engagement" value={aggregatedMetrics?.engagementScore.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.engagementScore || 0, prevMetric?.engagementScore)} data={metrics.map(m => ({ v: m.engagementScore }))} dataKey="v" strokeColor="#1F883D" fullMetrics={metrics} metricKey="engagementScore" />
+              <SparklineCard title="Likes" value={aggregatedMetrics?.likes.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.likes || 0, prevMetric?.likes)} data={metrics.map(m => ({ v: m.likes }))} dataKey="v" strokeColor="#DB61A2" fullMetrics={metrics} metricKey="likes" />
+              <SparklineCard title="Comments" value={aggregatedMetrics?.totalComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.totalComments || 0, prevMetric?.totalComments)} data={metrics.map(m => ({ v: m.totalComments }))} dataKey="v" strokeColor="#A371F7" fullMetrics={metrics} metricKey="totalComments" />
+              <SparklineCard title="Reach" value={aggregatedMetrics?.reach.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.reach || 0, prevMetric?.reach)} data={metrics.map(m => ({ v: m.reach }))} dataKey="v" strokeColor="#F0883E" fullMetrics={metrics} metricKey="reach" />
+              <SparklineCard title="Sentiment" value={`${aggregatedMetrics?.sentimentPercent || 50}%`} change={calculateChange(latestMetric?.sentimentPercent || 50, prevMetric?.sentimentPercent || 50)} data={metrics.map(m => ({ v: m.sentimentPercent }))} dataKey="v" strokeColor="#3BBDD0" fullMetrics={metrics} metricKey="sentimentPercent" />
+              <SparklineCard title="Negative Comments" value={aggregatedMetrics?.negativeComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.negativeComments || 0, prevMetric?.negativeComments)} changeType="negative" data={metrics.map(m => ({ v: m.negativeComments }))} dataKey="v" strokeColor="#F85149" fullMetrics={metrics} metricKey="negativeComments" />
             </div>
 
             <div className="grid grid-cols-12 gap-6 mb-6">

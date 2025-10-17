@@ -37,7 +37,7 @@ const ActivityLabel = (props: any) => {
 
 export const TimelineChart: React.FC<TimelineChartProps> = ({ metrics, activities, highlightedActivity }) => {
   return (
-    <div className="glass-card p-6 rounded-xl h-96">
+    <div className="glass-card p-6 rounded-xl h-96 relative z-10">
       <h3 className="text-3xl font-semibold text-brand-text-primary mb-4">Performance Overview</h3>
       <ResponsiveContainer width="100%" height="90%">
         <AreaChart 

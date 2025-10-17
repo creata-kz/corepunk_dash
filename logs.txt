@@ -1,24 +1,86 @@
-📊 Aggregating metrics from 509 events
-supabaseService.ts:301 ✅ Aggregated metrics for 16 days
-supabaseService.ts:302    Sample day (2025-09-29): mentions=2, engagement=4, sentiment=100%
-App.tsx:72 ✅ Supabase data loaded: Object
-App.tsx:57 📡 Loading data from Supabase...
-supabaseService.ts:134 ⚠️ Snapshots empty or all zeros, aggregating from events
-supabaseService.ts:387 ✅ Fetched 500 posts/comments for Community Pulse
-supabaseService.ts:390 Sample event: Object
-supabaseService.ts:412 Error in getComments: RangeError: Invalid count value: -1
-    at String.repeat (<anonymous>)
-    at SupabaseService.anonymizeString (supabaseService.ts:691:27)
-    at SupabaseService.anonymizeUsername (supabaseService.ts:678:36)
-    at supabaseService.ts:551:37
-    at Array.map (<anonymous>)
-    at SupabaseService.transformToComments (supabaseService.ts:529:19)
-    at SupabaseService.getComments (supabaseService.ts:398:29)
-    at async Promise.all (:5174/index 2)
-    at async App.tsx:60:49
-    at async refreshData (App.tsx:101:5)
-getComments @ supabaseService.ts:412Understand this error
-supabaseService.ts:172 📊 Aggregating metrics from 509 events
-supabaseService.ts:301 ✅ Aggregated metrics for 16 days
-supabaseService.ts:302    Sample day (2025-09-29): mentions=2, engagement=4, sentiment=100%
-App.tsx:72 ✅ Supabase data loaded: Object
+✅ Supabase client initialized
+2App.tsx:165 📅 Date filter: ALL - Metrics: 0, Activities: 0, Comments: 0
+App.tsx:39 ⏰ App: dateRange changed to "all" 
+App.tsx:63 📡 Loading data from Supabase...
+App.tsx:39 ⏰ App: dateRange changed to "all" 
+App.tsx:63 📡 Loading data from Supabase...
+2supabaseService.ts:134 ⚠️ Snapshots empty or all zeros, aggregating from events
+supabaseService.ts:420 ✅ Fetched 312 posts/comments for Community Pulse
+supabaseService.ts:423 Sample event: Object
+supabaseService.ts:432 📝 Transformed to 312 comments
+supabaseService.ts:435 Sample comment: Object
+supabaseService.ts:420 ✅ Fetched 312 posts/comments for Community Pulse
+supabaseService.ts:423 Sample event: Object
+supabaseService.ts:432 📝 Transformed to 312 comments
+supabaseService.ts:435 Sample comment: Object
+supabaseService.ts:172 📊 Aggregating metrics from 323 events
+supabaseService.ts:334 ✅ Aggregated metrics for 37 days
+supabaseService.ts:335    Sample day (2025-07-27): mentions=13, engagement=70, sentiment=75%
+supabaseService.ts:339    Sample byPlatform: Object
+App.tsx:78 ✅ Supabase data loaded: Object
+App.tsx:84    Metrics date range: 2025-07-27 to 2025-10-17
+App.tsx:85    Sample metrics: Array(3)
+2App.tsx:165 📅 Date filter: ALL - Metrics: 37, Activities: 4, Comments: 312
+App.tsx:228 📊 Aggregated metrics for 37 days: Object
+App.tsx:228 📊 Aggregated metrics for 37 days: Object
+supabaseService.ts:172 📊 Aggregating metrics from 323 events
+supabaseService.ts:334 ✅ Aggregated metrics for 37 days
+supabaseService.ts:335    Sample day (2025-07-27): mentions=13, engagement=70, sentiment=75%
+supabaseService.ts:339    Sample byPlatform: Object
+App.tsx:78 ✅ Supabase data loaded: Object
+App.tsx:84    Metrics date range: 2025-07-27 to 2025-10-17
+App.tsx:85    Sample metrics: Array(3)
+2App.tsx:165 📅 Date filter: ALL - Metrics: 37, Activities: 4, Comments: 312
+App.tsx:228 📊 Aggregated metrics for 37 days: Object
+App.tsx:228 📊 Aggregated metrics for 37 days: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+SparklineCard.tsx:48 CustomTooltip Debug: Object
+Sparkli

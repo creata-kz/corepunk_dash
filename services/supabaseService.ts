@@ -189,54 +189,79 @@ class SupabaseService {
             negativeComments: 0,
             positiveComments: 0,
             posts: 0,
+            byPlatform: {},
           });
         }
 
         const metric = metricsByDate.get(date)!;
         const props = event.properties || {};
+        const platform = this.capitalizeFirstLetter(event.platform);
+
+        // Инициализируем платформу если её ещё нет
+        if (!metric.byPlatform![platform]) {
+          metric.byPlatform![platform] = {
+            dailyMentions: 0,
+            likes: 0,
+            comments: 0,
+            reach: 0,
+            negativeComments: 0,
+          };
+        }
 
         // Считаем посты и комментарии для dailyMentions
         if (event.event_type.includes('post') || event.event_type === 'video_mention') {
           metric.posts!++;
+          metric.byPlatform![platform].dailyMentions++;
         }
         if (event.event_type.includes('comment')) {
           metric.totalComments++;
+          metric.byPlatform![platform].comments++;
+          metric.byPlatform![platform].dailyMentions++;
         }
 
         // Лайки (из Reddit score, YouTube likes, VK likes, TikTok diggCount)
+        let likesForThisEvent = 0;
         if (event.event_type.includes('post') || event.event_type.includes('comment') || event.event_type === 'video_mention') {
           if (props.score && props.score > 1) {
-            metric.likes += props.score - 1; // Reddit score включает сам пост
+            likesForThisEvent += props.score - 1; // Reddit score включает сам пост
           }
           if (props.like_count) {
-            metric.likes += props.like_count;
+            likesForThisEvent += props.like_count;
           }
           if (props.likes) {
-            metric.likes += props.likes;
+            likesForThisEvent += props.likes;
           }
+          metric.likes += likesForThisEvent;
+          metric.byPlatform![platform].likes += likesForThisEvent;
         }
 
         // Value field (Reddit uses this for score, TikTok for likes)
         if (event.value && (event.event_type.includes('post') || event.event_type === 'video_mention')) {
+          let valueAsLikes = 0;
           if (event.event_type === 'video_mention') {
             // TikTok value is already likes count
-            metric.likes += event.value;
+            valueAsLikes = event.value;
           } else {
             // Reddit score includes the post itself
-            metric.likes += Math.max(0, event.value - 1);
+            valueAsLikes = Math.max(0, event.value - 1);
           }
+          metric.likes += valueAsLikes;
+          metric.byPlatform![platform].likes += valueAsLikes;
         }
 
         // Reach (views, impressions)
+        let reachForThisEvent = 0;
         if (props.view_count) {
-          metric.reach += props.view_count;
+          reachForThisEvent += props.view_count;
         }
         if (props.views) {
-          metric.reach += props.views;
+          reachForThisEvent += props.views;
         }
         if (props.impressions) {
-          metric.reach += props.impressions;
+          reachForThisEvent += props.impressions;
         }
+        metric.reach += reachForThisEvent;
+        metric.byPlatform![platform].reach += reachForThisEvent;
 
         // Sentiment analysis для комментариев
         if (event.event_type.includes('comment')) {
@@ -261,6 +286,7 @@ class SupabaseService {
           // Проверяем sentiment
           if (sentiment === 'negative') {
             metric.negativeComments++;
+            metric.byPlatform![platform].negativeComments++;
           } else if (sentiment === 'positive') {
             metric.positiveComments!++;
           } else {
@@ -270,6 +296,7 @@ class SupabaseService {
 
             if (hasNegative && !hasPositive) {
               metric.negativeComments++;
+              metric.byPlatform![platform].negativeComments++;
             } else if (hasPositive && !hasNegative) {
               metric.positiveComments!++;
             }

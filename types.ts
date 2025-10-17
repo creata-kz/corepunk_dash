@@ -36,6 +36,17 @@ export interface DailyMetric {
   // Helper fields for calculations
   positiveComments?: number;  // For sentiment calculation
   posts?: number;             // For dailyMentions calculation
+
+  // Platform breakdown
+  byPlatform?: {
+    [platform: string]: {
+      dailyMentions: number;
+      likes: number;
+      comments: number;
+      reach: number;
+      negativeComments: number;
+    };
+  };
 }
 
 export type Sentiment = "Positive" | "Negative" | "Neutral";

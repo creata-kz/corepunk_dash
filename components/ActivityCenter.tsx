@@ -41,7 +41,7 @@ export const ActivityCenter: React.FC<ActivityCenterProps> = ({ activities, onAc
     const sortedActivities = [...activities].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return (
-        <div className="glass-card p-4 rounded-xl h-[45.5rem] flex flex-col">
+        <div className="glass-card p-4 rounded-xl h-[45.5rem] flex flex-col relative z-10">
             <h3 className="text-3xl font-semibold text-brand-text-primary mb-4 shrink-0">Activity Feed</h3>
 
             <div className="overflow-y-auto flex-1 pr-2 -mr-4">
