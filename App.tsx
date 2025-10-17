@@ -145,8 +145,11 @@ const App: React.FC = () => {
     const filteredMetrics = allMetrics.filter(m => m.date >= startStr);
     const filteredActivities = allActivities.filter(a => a.date >= startStr);
 
-    const activityIds = new Set(filteredActivities.map(a => a.id));
-    const filteredComments = allComments.filter(c => activityIds.has(c.activityId));
+    // Comments are now independent - filter by timestamp, not by activityId
+    const filteredComments = allComments.filter(c => {
+      const commentDate = c.timestamp.split('T')[0];
+      return commentDate >= startStr;
+    });
 
     return { metrics: filteredMetrics, activities: filteredActivities, comments: filteredComments };
   }, [dateRange, allMetrics, allActivities, allComments]);

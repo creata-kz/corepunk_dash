@@ -196,15 +196,15 @@ class SupabaseService {
         const props = event.properties || {};
 
         // Считаем посты и комментарии для dailyMentions
-        if (event.event_type.includes('post')) {
+        if (event.event_type.includes('post') || event.event_type === 'video_mention') {
           metric.posts!++;
         }
         if (event.event_type.includes('comment')) {
           metric.totalComments++;
         }
 
-        // Лайки (из Reddit score, YouTube likes, VK likes)
-        if (event.event_type.includes('post') || event.event_type.includes('comment')) {
+        // Лайки (из Reddit score, YouTube likes, VK likes, TikTok diggCount)
+        if (event.event_type.includes('post') || event.event_type.includes('comment') || event.event_type === 'video_mention') {
           if (props.score && props.score > 1) {
             metric.likes += props.score - 1; // Reddit score включает сам пост
           }
@@ -216,9 +216,15 @@ class SupabaseService {
           }
         }
 
-        // Value field (Reddit uses this for score)
-        if (event.value && event.event_type.includes('post')) {
-          metric.likes += Math.max(0, event.value - 1);
+        // Value field (Reddit uses this for score, TikTok for likes)
+        if (event.value && (event.event_type.includes('post') || event.event_type === 'video_mention')) {
+          if (event.event_type === 'video_mention') {
+            // TikTok value is already likes count
+            metric.likes += event.value;
+          } else {
+            // Reddit score includes the post itself
+            metric.likes += Math.max(0, event.value - 1);
+          }
         }
 
         // Reach (views, impressions)
@@ -385,7 +391,29 @@ class SupabaseService {
       }
 
       console.log(`✅ Fetched ${data?.length || 0} posts/comments for Community Pulse`);
-      return this.transformToComments(data as SupabaseEvent[]);
+
+      if (data && data.length > 0) {
+        console.log('Sample event:', {
+          type: data[0].event_type,
+          platform: data[0].platform,
+          author: data[0].properties?.author,
+          text: (data[0].properties?.title || data[0].properties?.comment_text || '').substring(0, 50)
+        });
+      }
+
+      const comments = this.transformToComments(data as SupabaseEvent[]);
+      console.log(`📝 Transformed to ${comments.length} comments`);
+
+      if (comments.length > 0) {
+        console.log('Sample comment:', {
+          author: comments[0].author,
+          text: comments[0].text.substring(0, 50),
+          sentiment: comments[0].sentiment,
+          source: comments[0].source
+        });
+      }
+
+      return comments;
     } catch (error) {
       console.error('Error in getComments:', error);
       return [];
@@ -510,6 +538,7 @@ class SupabaseService {
       // Извлекаем текст из разных полей (посты и комментарии)
       const text = props.title ||  // Reddit post title
                    props.selftext ||  // Reddit post text
+                   props.description ||  // TikTok video description
                    props.comment_text ||
                    props.comment_body ||
                    props.text ||
@@ -627,6 +656,10 @@ class SupabaseService {
   }
 
   private capitalizeFirstLetter(str: string): string {
+    // Special handling for TikTok
+    if (str.toLowerCase() === 'tiktok') {
+      return 'Tiktok';
+    }
     return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
@@ -643,7 +676,7 @@ class SupabaseService {
     }
 
     // Удаляем префиксы типа "reddit_" или "youtube_"
-    const cleanUsername = username.replace(/^(reddit_|youtube_|vk_|discord_)/i, '');
+    const cleanUsername = username.replace(/^(reddit_|youtube_|vk_|discord_|tiktok_)/i, '');
 
     if (cleanUsername.length <= 3) {
       // Для коротких имён показываем первую и последнюю букву
@@ -665,10 +698,24 @@ class SupabaseService {
    * Анонимизирует строку, оставляя начало и конец
    */
   private anonymizeString(str: string): string {
-    if (str.length <= 3) {
-      return str[0] + '*'.repeat(str.length - 1);
+    // Обработка пустой строки или очень коротких строк
+    if (!str || str.length === 0) {
+      return 'Anonymous';
     }
 
+    if (str.length === 1) {
+      return '*';
+    }
+
+    if (str.length === 2) {
+      return str[0] + '*';
+    }
+
+    if (str.length === 3) {
+      return str[0] + '*' + str[2];
+    }
+
+    // Для строк длиннее 3 символов
     const visibleChars = Math.max(2, Math.floor(str.length * 0.25)); // 25% от длины, минимум 2
     const start = str.substring(0, visibleChars);
     const end = str.substring(str.length - visibleChars);
