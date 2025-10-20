@@ -68,29 +68,29 @@ I've analyzed the recent data. The 'Champion Class Rebalance (Nerf)' on ${contex
     }
   }
 
-  public async getTrendAnalysis(context: { 
-      metrics: DailyMetric[], 
-      activities: ProductionActivity[], 
-      comments: Comment[] 
+  public async getTrendAnalysis(context: {
+      metrics: DailyMetric[],
+      activities: ProductionActivity[],
+      comments: Comment[]
     }): Promise<string> {
-     if (!this.isInitialized) {
+     if (!this.isInitialized || !process.env.GEMINI_API_KEY) {
         await new Promise(res => setTimeout(res, 1500));
         return `The recent Server Stress Test successfully boosted DAU, but triggered a +250% increase in negative comments related to server lag. While player engagement is high, addressing infrastructure stability is now the top priority before the next CBT wave.`;
      }
-     
-     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+
+     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
      const trendPrompt = `
-        You are a game project analyst for Corepunk. Your task is to analyze the provided data to identify the most significant trend or event from the last few days. 
-        Provide a concise, one-paragraph summary highlighting the event, its impact on key metrics, and the related community reaction. 
+        You are a game project analyst for Corepunk. Your task is to analyze the provided data to identify the most significant trend or event from the last few days.
+        Provide a concise, one-paragraph summary highlighting the event, its impact on key metrics, and the related community reaction.
         Start directly with the summary, do not use any titles or special formatting like markdown.
-        
+
         DATA CONTEXT:
         - Key Metrics (last 10 days of selected range): ${JSON.stringify(context.metrics.slice(-10))}
         - All Production Activities in selected range: ${JSON.stringify(context.activities)}
         - Recent Community Comments (sample of 20): ${JSON.stringify(context.comments.slice(0, 20).map(c => ({ sentiment: c.sentiment, userType: c.userType, text: c.text, source: c.source })))}
      `;
-     
+
      try {
        const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
