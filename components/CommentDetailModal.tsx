@@ -43,8 +43,8 @@ export const CommentDetailModal: React.FC<CommentDetailModalProps> = ({ isOpen, 
     if (!isOpen || !modalRoot) return null;
 
     return ReactDOM.createPortal(
-        <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+        <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]"
             onClick={onClose}
         >
             <div 

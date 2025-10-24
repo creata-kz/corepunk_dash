@@ -86,8 +86,8 @@ export const FloatingAiChat: React.FC<FloatingAiChatProps> = ({ isOpen, onClose,
     if (!isOpen || !modalRoot) return null;
 
     return ReactDOM.createPortal(
-        <div 
-            className="fixed inset-0 bg-black/50 flex items-end justify-end p-4 z-50"
+        <div
+            className="fixed inset-0 bg-black/50 flex items-end justify-end p-4 z-[10000]"
             onClick={onClose}
         >
             <div 
