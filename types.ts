@@ -70,6 +70,7 @@ export interface Comment {
         post_id?: string; // ID поста (для Reddit комментариев)
         post_title?: string; // Заголовок поста (для Reddit комментариев)
         is_post?: boolean; // Это пост или комментарий
+        video_urls?: string[]; // URLs видео (для VK постов)
     };
 }
 
@@ -91,3 +92,5 @@ export interface CustomDateRange {
     startDate: string; // YYYY-MM-DD
     endDate: string;   // YYYY-MM-DD
 }
+
+export type PlatformFilter = 'all' | 'Reddit' | 'Youtube' | 'Vk' | 'Discord' | 'Tiktok';

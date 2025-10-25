@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { DailyMetric, ProductionActivity, Comment, ChatMessage, DateRange, CustomDateRange } from './types';
+import { DailyMetric, ProductionActivity, Comment, ChatMessage, DateRange, CustomDateRange, PlatformFilter } from './types';
 import { generateInitialActivities, generateMetrics, generateComments } from './services/mockDataService';
 import { supabaseService } from './services/supabaseService';
 import { SparklineCard } from './components/SparklineCard';
@@ -13,6 +13,8 @@ import { ActivityCenter } from './components/ActivityCenter';
 import { ActivityDetailModal } from './components/ActivityDetailModal';
 import { AiStrategicBrief } from './components/AiStrategicBrief';
 import { CommentDetailModal } from './components/CommentDetailModal';
+import { MetricDetailModal } from './components/MetricDetailModal';
+import { METRIC_DESCRIPTIONS } from './constants/metricDescriptions';
 
 
 const App: React.FC = () => {
@@ -30,9 +32,18 @@ const App: React.FC = () => {
   // Control State
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [customDateRange, setCustomDateRange] = useState<CustomDateRange | null>(null);
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ProductionActivity | null>(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+
+  // Metric Detail Modal State
+  const [selectedMetric, setSelectedMetric] = useState<{
+    key: keyof DailyMetric;
+    title: string;
+    strokeColor: string;
+    changeType?: 'positive' | 'negative';
+  } | null>(null);
 
   // Debug: log date range changes
   useEffect(() => {
@@ -146,7 +157,7 @@ const App: React.FC = () => {
     }
   }, [dataSource, isLoading, loadData]);
 
-  // Filter data by date range
+  // Filter data by date range and platform
   const { activities, metrics, comments } = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -158,30 +169,89 @@ const App: React.FC = () => {
       // Show only today's data
       startStr = todayStr;
     } else if (dateRange === 'all') {
-      // Show all available data (no filtering)
-      const filteredMetrics = allMetrics;
-      const filteredActivities = allActivities;
-      const filteredComments = allComments;
-      console.log(`📅 Date filter: ALL - Metrics: ${filteredMetrics.length}, Activities: ${filteredActivities.length}, Comments: ${filteredComments.length}`);
-      return { metrics: filteredMetrics, activities: filteredActivities, comments: filteredComments };
+      // Show all available data (no date filtering)
+      startStr = '';
+      endStr = '';
     } else if (dateRange === 'custom' && customDateRange) {
       // Use custom date range
       startStr = customDateRange.startDate;
       endStr = customDateRange.endDate;
     } else {
       // Fallback to "all" if custom is selected but no range is set
-      return { metrics: allMetrics, activities: allActivities, comments: allComments };
+      startStr = '';
+      endStr = '';
     }
 
     // Filter data by date range
-    const filteredMetrics = allMetrics.filter(m => m.date >= startStr && m.date <= endStr);
-    const filteredActivities = allActivities.filter(a => a.date >= startStr && a.date <= endStr);
-    const filteredComments = allComments.filter(c => {
-      const commentDate = c.timestamp.split('T')[0];
-      return commentDate >= startStr && commentDate <= endStr;
-    });
+    let filteredMetrics = dateRange === 'all'
+      ? allMetrics
+      : allMetrics.filter(m => m.date >= startStr && m.date <= endStr);
+    let filteredActivities = dateRange === 'all'
+      ? allActivities
+      : allActivities.filter(a => a.date >= startStr && a.date <= endStr);
+    let filteredComments = dateRange === 'all'
+      ? allComments
+      : allComments.filter(c => {
+          const commentDate = c.timestamp.split('T')[0];
+          return commentDate >= startStr && commentDate <= endStr;
+        });
 
-    console.log(`📅 Date filter: ${dateRange} (${startStr} to ${endStr})`);
+    // Filter by platform
+    if (platformFilter !== 'all') {
+      // Filter metrics - recalculate from platform breakdown
+      filteredMetrics = filteredMetrics.map(m => {
+        const platformData = m.byPlatform?.[platformFilter];
+        if (!platformData) {
+          // No data for this platform on this date
+          return {
+            ...m,
+            dailyMentions: 0,
+            likes: 0,
+            totalComments: 0,
+            reach: 0,
+            negativeComments: 0,
+            engagementScore: 0,
+            sentimentPercent: 50,
+          };
+        }
+
+        // Calculate engagement score for platform
+        const engagementScore = Math.round(
+          (platformData.likes || 0) * 1.5 +
+          (platformData.comments || 0) * 2 +
+          (platformData.reach || 0) * 0.1
+        );
+
+        // Calculate sentiment from platform data
+        const totalComments = platformData.comments || 0;
+        const negativeComments = platformData.negativeComments || 0;
+        const positiveComments = Math.max(0, totalComments - negativeComments);
+        const sentimentPercent = totalComments > 0
+          ? Math.round((positiveComments / totalComments) * 100)
+          : 50;
+
+        return {
+          ...m,
+          dailyMentions: platformData.dailyMentions || 0,
+          likes: platformData.likes || 0,
+          totalComments: platformData.comments || 0,
+          reach: platformData.reach || 0,
+          negativeComments: platformData.negativeComments || 0,
+          engagementScore: engagementScore,
+          sentimentPercent: sentimentPercent,
+        };
+      });
+
+      // Filter comments by platform (source field)
+      filteredComments = filteredComments.filter(c => c.source === platformFilter);
+
+      // Filter activities by platform
+      filteredActivities = filteredActivities.filter(a =>
+        a.platforms.includes(platformFilter) || a.platforms.length === 0
+      );
+    }
+
+    console.log(`📅 Filter: ${dateRange}${dateRange !== 'all' ? ` (${startStr} to ${endStr})` : ''}, Platform: ${platformFilter}`);
     console.log(`   Metrics: ${filteredMetrics.length}, Activities: ${filteredActivities.length}, Comments: ${filteredComments.length}`);
     if (filteredMetrics.length > 0) {
       const latest = filteredMetrics[filteredMetrics.length - 1];
@@ -189,7 +259,7 @@ const App: React.FC = () => {
     }
 
     return { metrics: filteredMetrics, activities: filteredActivities, comments: filteredComments };
-  }, [dateRange, customDateRange, allMetrics, allActivities, allComments]);
+  }, [dateRange, customDateRange, platformFilter, allMetrics, allActivities, allComments]);
 
   const handleSelectActivity = (activity: ProductionActivity) => {
     setSelectedActivity(activity.id === selectedActivity?.id ? null : activity);
@@ -279,19 +349,99 @@ const App: React.FC = () => {
             setDateRange={setDateRange}
             customDateRange={customDateRange}
             setCustomDateRange={setCustomDateRange}
+            platformFilter={platformFilter}
+            setPlatformFilter={setPlatformFilter}
             onRefresh={refreshData}
             isRefreshing={isRefreshing}
           />
 
           <main>
             <div className="col-span-12 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 mb-6">
-              <SparklineCard title="Daily Mentions" value={aggregatedMetrics?.dailyMentions.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.dailyMentions || 0, prevMetric?.dailyMentions)} data={metrics.map(m => ({ v: m.dailyMentions }))} dataKey="v" strokeColor="#388BFD" fullMetrics={metrics} metricKey="dailyMentions" />
-              <SparklineCard title="Engagement" value={aggregatedMetrics?.engagementScore.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.engagementScore || 0, prevMetric?.engagementScore)} data={metrics.map(m => ({ v: m.engagementScore }))} dataKey="v" strokeColor="#1F883D" fullMetrics={metrics} metricKey="engagementScore" />
-              <SparklineCard title="Likes" value={aggregatedMetrics?.likes.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.likes || 0, prevMetric?.likes)} data={metrics.map(m => ({ v: m.likes }))} dataKey="v" strokeColor="#DB61A2" fullMetrics={metrics} metricKey="likes" />
-              <SparklineCard title="Comments" value={aggregatedMetrics?.totalComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.totalComments || 0, prevMetric?.totalComments)} data={metrics.map(m => ({ v: m.totalComments }))} dataKey="v" strokeColor="#A371F7" fullMetrics={metrics} metricKey="totalComments" />
-              <SparklineCard title="Reach" value={aggregatedMetrics?.reach.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.reach || 0, prevMetric?.reach)} data={metrics.map(m => ({ v: m.reach }))} dataKey="v" strokeColor="#F0883E" fullMetrics={metrics} metricKey="reach" />
-              <SparklineCard title="Sentiment" value={`${aggregatedMetrics?.sentimentPercent || 50}%`} change={calculateChange(latestMetric?.sentimentPercent || 50, prevMetric?.sentimentPercent || 50)} data={metrics.map(m => ({ v: m.sentimentPercent }))} dataKey="v" strokeColor="#3BBDD0" fullMetrics={metrics} metricKey="sentimentPercent" />
-              <SparklineCard title="Negative Comments" value={aggregatedMetrics?.negativeComments.toLocaleString() || 'N/A'} change={calculateChange(latestMetric?.negativeComments || 0, prevMetric?.negativeComments)} changeType="negative" data={metrics.map(m => ({ v: m.negativeComments }))} dataKey="v" strokeColor="#F85149" fullMetrics={metrics} metricKey="negativeComments" />
+              <SparklineCard
+                title="Daily Mentions"
+                value={aggregatedMetrics?.dailyMentions.toLocaleString() || 'N/A'}
+                change={calculateChange(latestMetric?.dailyMentions || 0, prevMetric?.dailyMentions)}
+                data={metrics.map(m => ({ v: m.dailyMentions }))}
+                dataKey="v"
+                strokeColor="#388BFD"
+                fullMetrics={metrics}
+                metricKey="dailyMentions"
+                description={METRIC_DESCRIPTIONS.dailyMentions}
+                onClick={() => setSelectedMetric({ key: 'dailyMentions', title: 'Daily Mentions', strokeColor: '#388BFD' })}
+              />
+              <SparklineCard
+                title="Engagement"
+                value={aggregatedMetrics?.engagementScore.toLocaleString() || 'N/A'}
+                change={calculateChange(latestMetric?.engagementScore || 0, prevMetric?.engagementScore)}
+                data={metrics.map(m => ({ v: m.engagementScore }))}
+                dataKey="v"
+                strokeColor="#1F883D"
+                fullMetrics={metrics}
+                metricKey="engagementScore"
+                description={METRIC_DESCRIPTIONS.engagementScore}
+                onClick={() => setSelectedMetric({ key: 'engagementScore', title: 'Engagement', strokeColor: '#1F883D' })}
+              />
+              <SparklineCard
+                title="Likes"
+                value={aggregatedMetrics?.likes.toLocaleString() || 'N/A'}
+                change={calculateChange(latestMetric?.likes || 0, prevMetric?.likes)}
+                data={metrics.map(m => ({ v: m.likes }))}
+                dataKey="v"
+                strokeColor="#DB61A2"
+                fullMetrics={metrics}
+                metricKey="likes"
+                description={METRIC_DESCRIPTIONS.likes}
+                onClick={() => setSelectedMetric({ key: 'likes', title: 'Likes', strokeColor: '#DB61A2' })}
+              />
+              <SparklineCard
+                title="Comments"
+                value={aggregatedMetrics?.totalComments.toLocaleString() || 'N/A'}
+                change={calculateChange(latestMetric?.totalComments || 0, prevMetric?.totalComments)}
+                data={metrics.map(m => ({ v: m.totalComments }))}
+                dataKey="v"
+                strokeColor="#A371F7"
+                fullMetrics={metrics}
+                metricKey="totalComments"
+                description={METRIC_DESCRIPTIONS.totalComments}
+                onClick={() => setSelectedMetric({ key: 'totalComments', title: 'Comments', strokeColor: '#A371F7' })}
+              />
+              <SparklineCard
+                title="Reach"
+                value={aggregatedMetrics?.reach.toLocaleString() || 'N/A'}
+                change={calculateChange(latestMetric?.reach || 0, prevMetric?.reach)}
+                data={metrics.map(m => ({ v: m.reach }))}
+                dataKey="v"
+                strokeColor="#F0883E"
+                fullMetrics={metrics}
+                metricKey="reach"
+                description={METRIC_DESCRIPTIONS.reach}
+                onClick={() => setSelectedMetric({ key: 'reach', title: 'Reach', strokeColor: '#F0883E' })}
+              />
+              <SparklineCard
+                title="Sentiment"
+                value={`${aggregatedMetrics?.sentimentPercent || 50}%`}
+                change={calculateChange(latestMetric?.sentimentPercent || 50, prevMetric?.sentimentPercent || 50)}
+                data={metrics.map(m => ({ v: m.sentimentPercent }))}
+                dataKey="v"
+                strokeColor="#3BBDD0"
+                fullMetrics={metrics}
+                metricKey="sentimentPercent"
+                description={METRIC_DESCRIPTIONS.sentimentPercent}
+                onClick={() => setSelectedMetric({ key: 'sentimentPercent', title: 'Sentiment', strokeColor: '#3BBDD0' })}
+              />
+              <SparklineCard
+                title="Negative Comments"
+                value={aggregatedMetrics?.negativeComments.toLocaleString() || 'N/A'}
+                change={calculateChange(latestMetric?.negativeComments || 0, prevMetric?.negativeComments)}
+                changeType="negative"
+                data={metrics.map(m => ({ v: m.negativeComments }))}
+                dataKey="v"
+                strokeColor="#F85149"
+                fullMetrics={metrics}
+                metricKey="negativeComments"
+                description={METRIC_DESCRIPTIONS.negativeComments}
+                onClick={() => setSelectedMetric({ key: 'negativeComments', title: 'Negative Comments', strokeColor: '#F85149', changeType: 'negative' })}
+              />
             </div>
 
             <div className="grid grid-cols-12 gap-6 mb-6">
@@ -310,7 +460,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <AiStrategicBrief />
+               <AiStrategicBrief platformFilter={platformFilter} />
                <CommunityPulse
                     comments={comments}
                     onOpenModal={() => setIsCommentModalOpen(true)}
@@ -347,6 +497,27 @@ const App: React.FC = () => {
         onClose={() => setIsCommentModalOpen(false)}
         comments={comments}
       />
+
+      {selectedMetric && (
+        <MetricDetailModal
+          isOpen={selectedMetric !== null}
+          onClose={() => setSelectedMetric(null)}
+          metricKey={selectedMetric.key}
+          title={selectedMetric.title}
+          description={METRIC_DESCRIPTIONS[selectedMetric.key]}
+          metrics={metrics}
+          strokeColor={selectedMetric.strokeColor}
+          currentValue={selectedMetric.key === 'sentimentPercent'
+            ? `${aggregatedMetrics?.[selectedMetric.key] || 50}%`
+            : aggregatedMetrics?.[selectedMetric.key]?.toLocaleString() || 'N/A'
+          }
+          change={calculateChange(
+            latestMetric?.[selectedMetric.key] || (selectedMetric.key === 'sentimentPercent' ? 50 : 0),
+            prevMetric?.[selectedMetric.key] || (selectedMetric.key === 'sentimentPercent' ? 50 : undefined)
+          )}
+          changeType={selectedMetric.changeType}
+        />
+      )}
     </>
   );
 };

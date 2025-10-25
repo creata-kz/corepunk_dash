@@ -15,8 +15,9 @@ export const AllPostsModal: React.FC<AllPostsModalProps> = ({ isOpen, onClose, p
 
     return (
         <>
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-                <div className="glass-card w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="glass-card w-full max-w-4xl my-8 flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
                     {/* Header */}
                     <div className="p-6 border-b border-brand-border flex items-center justify-between">
                         <h2 className="text-2xl font-bold text-brand-text-primary">All Posts</h2>
@@ -69,6 +70,7 @@ export const AllPostsModal: React.FC<AllPostsModalProps> = ({ isOpen, onClose, p
                         ) : (
                             <p className="text-brand-text-secondary text-center py-8">No posts available</p>
                         )}
+                    </div>
                     </div>
                 </div>
             </div>

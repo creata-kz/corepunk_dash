@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { DateRange, CustomDateRange } from '../types';
+import type { PlatformFilter } from '../types';
 
 interface HeaderProps {
     dateRange: DateRange;
     setDateRange: (range: DateRange) => void;
     customDateRange: CustomDateRange | null;
     setCustomDateRange: (range: CustomDateRange | null) => void;
+    platformFilter: PlatformFilter;
+    setPlatformFilter: (platform: PlatformFilter) => void;
     onRefresh?: () => void;
     isRefreshing?: boolean;
 }
@@ -125,54 +128,99 @@ const DateRangePicker: React.FC<{
     );
 };
 
+const PlatformFilter: React.FC<{
+    value: PlatformFilter,
+    onChange: (value: PlatformFilter) => void
+}> = ({ value, onChange }) => {
+    const platforms: { id: PlatformFilter, label: string, icon?: string }[] = [
+        { id: 'all', label: 'All' },
+        { id: 'Reddit', label: 'Reddit', icon: '🔴' },
+        { id: 'Youtube', label: 'YouTube', icon: '📺' },
+        { id: 'Vk', label: 'VK', icon: '🔵' },
+        { id: 'Discord', label: 'Discord', icon: '💬' },
+        { id: 'Tiktok', label: 'TikTok', icon: '🎵' },
+    ];
+
+    return (
+        <div className="bg-brand-surface p-1 rounded-lg border border-brand-border flex items-center space-x-1">
+            {platforms.map(platform => (
+                <button
+                    key={platform.id}
+                    onClick={() => onChange(platform.id)}
+                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                        value === platform.id
+                            ? 'bg-brand-primary text-white'
+                            : 'text-brand-text-secondary hover:bg-brand-surface-2'
+                    }`}
+                >
+                    {platform.icon && <span>{platform.icon}</span>}
+                    <span>{platform.label}</span>
+                </button>
+            ))}
+        </div>
+    );
+};
+
 export const Header: React.FC<HeaderProps> = ({
     dateRange,
     setDateRange,
     customDateRange,
     setCustomDateRange,
+    platformFilter,
+    setPlatformFilter,
     onRefresh,
     isRefreshing = false
 }) => {
     return (
-        <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div className="flex items-center gap-4">
-                <img src="https://storage.googleapis.com/corepunk-static/pages/logos/game-logo.webp" alt="Corepunk Logo" className="h-16 w-auto" />
-                <div>
-                    <h1 className="text-5xl font-bold text-brand-text-primary">Corepunk Command Center</h1>
-                    <p className="text-brand-text-secondary mt-1">Analytics & Community Pulse</p>
+        <header className="mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+                <div className="flex items-center gap-4">
+                    <img src="https://storage.googleapis.com/corepunk-static/pages/logos/game-logo.webp" alt="Corepunk Logo" className="h-16 w-auto" />
+                    <div>
+                        <h1 className="text-5xl font-bold text-brand-text-primary">Corepunk Command Center</h1>
+                        <p className="text-brand-text-secondary mt-1">Analytics & Community Pulse</p>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-3 mt-4 md:mt-0">
+                    {onRefresh && (
+                        <button
+                            onClick={onRefresh}
+                            disabled={isRefreshing}
+                            className="px-4 py-2 bg-brand-surface hover:bg-brand-surface-2 disabled:opacity-50 disabled:cursor-not-allowed border border-brand-border rounded-lg transition-colors flex items-center gap-2"
+                            title="Refresh data"
+                        >
+                            <svg
+                                className={`w-4 h-4 text-brand-text-secondary ${isRefreshing ? 'animate-spin' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                />
+                            </svg>
+                            <span className="text-sm font-medium text-brand-text-secondary">
+                                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                            </span>
+                        </button>
+                    )}
+                    <DateRangePicker
+                        value={dateRange}
+                        onChange={setDateRange}
+                        customRange={customDateRange}
+                        onCustomRangeChange={setCustomDateRange}
+                    />
                 </div>
             </div>
-            <div className="flex items-center space-x-3 mt-4 md:mt-0">
-                {onRefresh && (
-                    <button
-                        onClick={onRefresh}
-                        disabled={isRefreshing}
-                        className="px-4 py-2 bg-brand-surface hover:bg-brand-surface-2 disabled:opacity-50 disabled:cursor-not-allowed border border-brand-border rounded-lg transition-colors flex items-center gap-2"
-                        title="Refresh data"
-                    >
-                        <svg
-                            className={`w-4 h-4 text-brand-text-secondary ${isRefreshing ? 'animate-spin' : ''}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                        </svg>
-                        <span className="text-sm font-medium text-brand-text-secondary">
-                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                        </span>
-                    </button>
-                )}
-                <DateRangePicker
-                    value={dateRange}
-                    onChange={setDateRange}
-                    customRange={customDateRange}
-                    onCustomRangeChange={setCustomDateRange}
+
+            {/* Platform Filter - below date range */}
+            <div className="flex justify-center">
+                <PlatformFilter
+                    value={platformFilter}
+                    onChange={setPlatformFilter}
                 />
             </div>
         </header>

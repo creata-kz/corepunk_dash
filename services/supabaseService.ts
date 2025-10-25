@@ -209,7 +209,9 @@ class SupabaseService {
         }
 
         // Считаем посты и комментарии для dailyMentions
-        if (event.event_type.includes('post') || event.event_type === 'video_mention') {
+        if (event.event_type.includes('post') ||
+            event.event_type === 'video_mention' ||
+            event.event_type === 'vk_mention') {  // VK posts
           metric.posts!++;
           metric.byPlatform![platform].dailyMentions++;
         }
@@ -221,7 +223,10 @@ class SupabaseService {
 
         // Лайки (из Reddit score, YouTube likes, VK likes, TikTok diggCount)
         let likesForThisEvent = 0;
-        if (event.event_type.includes('post') || event.event_type.includes('comment') || event.event_type === 'video_mention') {
+        if (event.event_type.includes('post') ||
+            event.event_type.includes('comment') ||
+            event.event_type === 'video_mention' ||
+            event.event_type === 'vk_mention') {  // VK posts
           if (props.score && props.score > 1) {
             likesForThisEvent += props.score - 1; // Reddit score включает сам пост
           }
@@ -235,11 +240,13 @@ class SupabaseService {
           metric.byPlatform![platform].likes += likesForThisEvent;
         }
 
-        // Value field (Reddit uses this for score, TikTok for likes)
-        if (event.value && (event.event_type.includes('post') || event.event_type === 'video_mention')) {
+        // Value field (Reddit uses this for score, TikTok for likes, VK for likes)
+        if (event.value && (event.event_type.includes('post') ||
+                            event.event_type === 'video_mention' ||
+                            event.event_type === 'vk_mention')) {  // VK posts
           let valueAsLikes = 0;
-          if (event.event_type === 'video_mention') {
-            // TikTok value is already likes count
+          if (event.event_type === 'video_mention' || event.event_type === 'vk_mention') {
+            // TikTok and VK value is already likes count
             valueAsLikes = event.value;
           } else {
             // Reddit score includes the post itself
@@ -583,13 +590,20 @@ class SupabaseService {
       const views = props.view_count || props.views || 0;
 
       // Определяем, это пост или комментарий
-      const isPost = event.event_type.includes('post') || event.event_type === 'video_mention';
+      const isPost = event.event_type.includes('post') ||
+                     event.event_type === 'video_mention' ||
+                     event.event_type === 'vk_mention';  // VK posts
 
       // Определяем post_id в зависимости от платформы и типа события
       let postId: string | undefined;
       if (isPost) {
         // Для постов используем их собственный ID
-        postId = props.post_id || props.video_id || event.content_id || event.external_event_id;
+        if (event.event_type === 'vk_mention') {
+          // VK posts: используем content_id для совпадения с комментариями
+          postId = event.content_id;
+        } else {
+          postId = props.post_id || props.video_id || event.content_id || event.external_event_id;
+        }
       } else {
         // Для комментариев используем ID родительского поста
         postId = props.post_id || props.video_id;
@@ -613,6 +627,7 @@ class SupabaseService {
           is_post: isPost,
           post_id: postId,
           post_title: props.post_title || (isPost ? text : null),
+          video_urls: props.video_urls || [],
         }
       };
     });
@@ -758,6 +773,84 @@ class SupabaseService {
     const middleLength = str.length - (visibleChars * 2);
 
     return `${start}${'*'.repeat(Math.max(4, middleLength))}${end}`;
+  }
+
+  /**
+   * Получение стратегического брифа за указанную дату
+   * @param date - дата в формате YYYY-MM-DD (по умолчанию сегодня)
+   * @param platformFilter - фильтр платформы ('all', 'Reddit', и т.д.)
+   */
+  public async getStrategicBrief(date?: string, platformFilter: string = 'all'): Promise<{
+    brief_text: string;
+    date: string;
+    metrics_summary: any;
+    created_at: string;
+  } | null> {
+    if (!this.isConnected() || !this.client) {
+      return null;
+    }
+
+    try {
+      const queryDate = date || new Date().toISOString().split('T')[0];
+
+      console.log(`📄 Fetching strategic brief for ${queryDate}, platform: ${platformFilter}`);
+
+      const { data, error } = await this.client
+        .from('strategic_briefs')
+        .select('*')
+        .eq('date', queryDate)
+        .eq('platform_filter', platformFilter)
+        .single();
+
+      if (error) {
+        console.warn(`No brief found for ${queryDate}:`, error.message);
+        return null;
+      }
+
+      console.log(`✅ Brief found for ${queryDate}`);
+      return data;
+    } catch (error) {
+      console.error('Error fetching strategic brief:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Получение последнего доступного брифа
+   * @param platformFilter - фильтр платформы
+   */
+  public async getLatestStrategicBrief(platformFilter: string = 'all'): Promise<{
+    brief_text: string;
+    date: string;
+    metrics_summary: any;
+    created_at: string;
+  } | null> {
+    if (!this.isConnected() || !this.client) {
+      return null;
+    }
+
+    try {
+      console.log(`📄 Fetching latest strategic brief, platform: ${platformFilter}`);
+
+      const { data, error } = await this.client
+        .from('strategic_briefs')
+        .select('*')
+        .eq('platform_filter', platformFilter)
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.warn('No briefs found:', error.message);
+        return null;
+      }
+
+      console.log(`✅ Latest brief found: ${data.date}`);
+      return data;
+    } catch (error) {
+      console.error('Error fetching latest brief:', error);
+      return null;
+    }
   }
 }
 

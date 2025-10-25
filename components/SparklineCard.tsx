@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, TooltipProps } from 'recharts';
 import { DailyMetric } from '../types';
 
@@ -12,6 +12,8 @@ interface SparklineCardProps {
   strokeColor: string;
   fullMetrics?: DailyMetric[]; // Полные метрики с byPlatform
   metricKey?: keyof DailyMetric; // Какую метрику показывать ('likes', 'reach', и т.д.)
+  description?: string; // Описание метрики
+  onClick?: () => void; // Обработчик клика на карточку
 }
 
 const ArrowUpIcon: React.FC = () => (
@@ -115,8 +117,11 @@ export const SparklineCard: React.FC<SparklineCardProps> = ({
   dataKey,
   strokeColor,
   fullMetrics,
-  metricKey
+  metricKey,
+  description,
+  onClick
 }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
   const isPositive = change >= 0;
   const changeColor = (changeType === 'positive' ? isPositive : !isPositive) ? 'text-green-400' : 'text-red-400';
 
@@ -130,18 +135,50 @@ export const SparklineCard: React.FC<SparklineCardProps> = ({
   const last7DaysMetrics = fullMetrics ? fullMetrics.slice(-7) : undefined;
 
   return (
-    <div className="glass-card p-4 rounded-xl flex flex-col justify-between h-32">
-      <div>
-        <h3 className="text-brand-text-secondary text-lg font-medium">{title}</h3>
-        <div className="flex items-baseline space-x-2 mt-1">
-          <p className="text-2xl font-semibold text-brand-text-primary">{value}</p>
-          <div className={`flex items-center text-sm font-medium ${changeColor}`}>
-              {isPositive ? <ArrowUpIcon/> : <ArrowDownIcon/>}
-              <span>{Math.abs(change).toFixed(1)}%</span>
+    <div
+      className={`glass-card p-4 rounded-xl flex flex-col h-40 relative ${onClick ? 'cursor-pointer hover:border-brand-primary transition-all' : ''}`}
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1 min-w-0 pr-2">
+          <h3 className="text-brand-text-secondary text-sm font-medium mb-2">{title}</h3>
+          <div className="flex items-center gap-2">
+            <p className="text-2xl font-semibold text-brand-text-primary">{value}</p>
+            <div className={`flex items-center text-sm font-medium ${changeColor} whitespace-nowrap`}>
+                {isPositive ? <ArrowUpIcon/> : <ArrowDownIcon/>}
+                <span>{Math.abs(change).toFixed(1)}%</span>
+            </div>
           </div>
         </div>
+
+        {/* Info Button */}
+        {description && (
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowTooltip(!showTooltip);
+              }}
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+              className="text-brand-text-secondary hover:text-brand-primary transition-colors p-1"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            {/* Tooltip */}
+            {showTooltip && (
+              <div className="absolute top-8 right-0 w-64 bg-brand-surface border border-brand-border rounded-lg p-3 shadow-xl z-[9999] text-sm text-brand-text-secondary">
+                {description}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <div className="h-1/3 w-full mt-2">
+
+      <div className="flex-1 w-full min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={last7DaysData}>
             <Tooltip
