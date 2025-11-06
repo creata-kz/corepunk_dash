@@ -1,7 +1,7 @@
 
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Comment, PostWithComments } from '../types';
+import { Comment, PostWithComments, Sentiment } from '../types';
 import { PostWithCommentsModal } from './PostWithCommentsModal';
 import { AllPostsModal } from './AllPostsModal';
 
@@ -10,10 +10,13 @@ interface CommunityPulseProps {
     onOpenModal: () => void;
 }
 
+type SentimentFilter = 'all' | Sentiment;
+
 export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpenModal }) => {
     const [selectedPost, setSelectedPost] = useState<PostWithComments | null>(null);
     const [showAllPosts, setShowAllPosts] = useState(false);
     const [displayScore, setDisplayScore] = useState(0);
+    const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>('all');
 
     const { sentimentScore, overall } = useMemo(() => {
         const counts = { Positive: 0, Negative: 0, Neutral: 0 };
@@ -43,13 +46,18 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
         return () => clearTimeout(timer);
     }, [sentimentScore]);
 
-    // Группируем комментарии по постам
+    // Группируем комментарии по постам с фильтрацией по sentiment
     const postsWithComments = useMemo(() => {
+        // Фильтруем комментарии по выбранному sentiment
+        const filteredComments = sentimentFilter === 'all'
+            ? comments
+            : comments.filter(c => c.sentiment === sentimentFilter);
+
         const postsMap = new Map<string, Comment>();
         const commentsByPostId = new Map<string, Comment[]>();
 
         // Сначала собираем все посты и комментарии
-        comments.forEach(item => {
+        filteredComments.forEach(item => {
             if (item.metadata?.is_post && item.metadata?.post_id) {
                 // Это пост - используем его post_id как ключ
                 postsMap.set(item.metadata.post_id, item);
@@ -80,7 +88,7 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
             const bScore = (b.post.metadata?.score || 0) + (b.totalComments * 5);
             return bScore - aScore;
         });
-    }, [comments]);
+    }, [comments, sentimentFilter]);
 
     // Топ посты для показа
     const topPosts = useMemo(() => {
@@ -97,7 +105,7 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
         <div className="glass-card p-4 rounded-xl h-full flex flex-col justify-between">
             <div>
                 <h3 className="text-3xl font-semibold text-brand-text-primary mb-2">Community Pulse</h3>
-                
+
                  <div className="space-y-2 mb-3">
                     <div className="flex justify-between items-baseline">
                         <p className="text-sm text-brand-text-secondary">Overall Sentiment</p>
@@ -105,9 +113,9 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
                     </div>
                     <div className="relative w-full pt-2">
                         <div className="h-2 w-full rounded-full bg-gradient-to-r from-red-500 via-brand-primary to-teal-400" />
-                        <div 
+                        <div
                             className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full border-2 border-brand-bg shadow-lg"
-                            style={{ 
+                            style={{
                                 left: `calc(${displayScore}% - 10px)`,
                                 transition: 'left 1s cubic-bezier(0.25, 1, 0.5, 1)',
                             }}
@@ -117,8 +125,54 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
                     </div>
                 </div>
 
+                {/* Sentiment Filter Buttons */}
+                <div className="flex gap-2 mb-3">
+                    <button
+                        onClick={() => setSentimentFilter('all')}
+                        className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                            sentimentFilter === 'all'
+                                ? 'bg-brand-primary text-white'
+                                : 'bg-white/5 text-brand-text-secondary hover:bg-white/10'
+                        }`}
+                    >
+                        All
+                    </button>
+                    <button
+                        onClick={() => setSentimentFilter('Positive')}
+                        className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                            sentimentFilter === 'Positive'
+                                ? 'bg-teal-500 text-white'
+                                : 'bg-white/5 text-teal-400 hover:bg-white/10'
+                        }`}
+                    >
+                        Positive
+                    </button>
+                    <button
+                        onClick={() => setSentimentFilter('Neutral')}
+                        className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                            sentimentFilter === 'Neutral'
+                                ? 'bg-gray-500 text-white'
+                                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                        }`}
+                    >
+                        Neutral
+                    </button>
+                    <button
+                        onClick={() => setSentimentFilter('Negative')}
+                        className={`flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                            sentimentFilter === 'Negative'
+                                ? 'bg-red-500 text-white'
+                                : 'bg-white/5 text-red-400 hover:bg-white/10'
+                        }`}
+                    >
+                        Negative
+                    </button>
+                </div>
+
                 <div>
-                    <h4 className="text-sm font-semibold text-brand-text-secondary mb-2">Top Posts</h4>
+                    <h4 className="text-sm font-semibold text-brand-text-secondary mb-2">
+                        Top Posts {sentimentFilter !== 'all' && `(${sentimentFilter})`}
+                    </h4>
                     <div className="space-y-2">
                         {topPosts.length > 0 ? topPosts.map(postData => (
                             <div
@@ -134,6 +188,13 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
                                         'bg-gray-500/20 text-gray-400 border-gray-500/30'
                                     }`}>
                                         {postData.post.source}
+                                    </span>
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded border ${
+                                        postData.post.sentiment === 'Positive' ? 'bg-teal-500/20 text-teal-400 border-teal-500/30' :
+                                        postData.post.sentiment === 'Negative' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                        'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                                    }`}>
+                                        {postData.post.sentiment === 'Positive' ? '😊' : postData.post.sentiment === 'Negative' ? '😟' : '😐'} {postData.post.sentiment}
                                     </span>
                                     <span className="text-xs text-brand-text-secondary">{postData.totalComments} comments</span>
                                 </div>

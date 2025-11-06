@@ -282,6 +282,7 @@ const App: React.FC = () => {
       totalComments: acc.totalComments + m.totalComments,
       reach: acc.reach + m.reach,
       negativeComments: acc.negativeComments + m.negativeComments,
+      positiveComments: acc.positiveComments + (m.positiveComments || Math.max(0, m.totalComments - m.negativeComments)),
     }), {
       dailyMentions: 0,
       engagementScore: 0,
@@ -290,13 +291,37 @@ const App: React.FC = () => {
       totalComments: 0,
       reach: 0,
       negativeComments: 0,
+      positiveComments: 0,
     });
 
     // Calculate average sentiment
     totals.sentimentPercent = Math.round(totals.sentimentPercent / metrics.length);
 
+    // Calculate average mentions per day
+    const avgMentionsPerDay = Math.round(totals.dailyMentions / metrics.length);
+
+    // Calculate engagement rate (engagement from reach)
+    const engagementRate = totals.reach > 0 ? ((totals.engagementScore / totals.reach) * 100).toFixed(2) : '0';
+
+    // Find top platform by total mentions
+    const platformTotals: Record<string, number> = {};
+    metrics.forEach(m => {
+      if (m.byPlatform) {
+        Object.entries(m.byPlatform).forEach(([platform, data]) => {
+          platformTotals[platform] = (platformTotals[platform] || 0) + data.dailyMentions;
+        });
+      }
+    });
+    const topPlatform = Object.entries(platformTotals).sort((a, b) => b[1] - a[1])[0];
+
     console.log(`📊 Aggregated metrics for ${metrics.length} days:`, totals);
-    return totals;
+    return {
+      ...totals,
+      avgMentionsPerDay,
+      engagementRate: parseFloat(engagementRate),
+      topPlatform: topPlatform ? topPlatform[0] : 'N/A',
+      topPlatformMentions: topPlatform ? topPlatform[1] : 0,
+    };
   }, [metrics]);
 
   // Get last two periods for comparison (for change percentage)
@@ -356,7 +381,27 @@ const App: React.FC = () => {
           />
 
           <main>
-            <div className="col-span-12 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 mb-6">
+            {/* Performance Overview Header with Data Source Indicator */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-brand-text-primary">Performance Overview</h2>
+              <div className="flex items-center gap-3">
+                <div className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 ${
+                  dataSource === 'supabase'
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${dataSource === 'supabase' ? 'bg-green-400' : 'bg-orange-400'} animate-pulse`}></div>
+                  <span>Source: {dataSource === 'supabase' ? 'Supabase (Live)' : 'Demo Data'}</span>
+                </div>
+                {metrics.length > 0 && (
+                  <div className="text-xs text-brand-text-secondary">
+                    {metrics.length} days of data
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="col-span-12 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-6 mb-6">
               <SparklineCard
                 title="Daily Mentions"
                 value={aggregatedMetrics?.dailyMentions.toLocaleString() || 'N/A'}
@@ -370,16 +415,19 @@ const App: React.FC = () => {
                 onClick={() => setSelectedMetric({ key: 'dailyMentions', title: 'Daily Mentions', strokeColor: '#388BFD' })}
               />
               <SparklineCard
-                title="Engagement"
-                value={aggregatedMetrics?.engagementScore.toLocaleString() || 'N/A'}
-                change={calculateChange(latestMetric?.engagementScore || 0, prevMetric?.engagementScore)}
-                data={metrics.map(m => ({ v: m.engagementScore }))}
+                title="Engagement Rate"
+                value={`${aggregatedMetrics?.engagementRate.toFixed(2) || '0'}%`}
+                change={calculateChange(
+                  latestMetric && latestMetric.reach > 0 ? (latestMetric.engagementScore / latestMetric.reach) * 100 : 0,
+                  prevMetric && prevMetric.reach > 0 ? (prevMetric.engagementScore / prevMetric.reach) * 100 : 0
+                )}
+                data={metrics.map(m => ({ v: m.reach > 0 ? (m.engagementScore / m.reach) * 100 : 0 }))}
                 dataKey="v"
                 strokeColor="#1F883D"
                 fullMetrics={metrics}
                 metricKey="engagementScore"
-                description={METRIC_DESCRIPTIONS.engagementScore}
-                onClick={() => setSelectedMetric({ key: 'engagementScore', title: 'Engagement', strokeColor: '#1F883D' })}
+                description={METRIC_DESCRIPTIONS.engagementRate}
+                onClick={() => setSelectedMetric({ key: 'engagementScore', title: 'Engagement Rate', strokeColor: '#1F883D' })}
               />
               <SparklineCard
                 title="Likes"
@@ -394,16 +442,34 @@ const App: React.FC = () => {
                 onClick={() => setSelectedMetric({ key: 'likes', title: 'Likes', strokeColor: '#DB61A2' })}
               />
               <SparklineCard
-                title="Comments"
-                value={aggregatedMetrics?.totalComments.toLocaleString() || 'N/A'}
-                change={calculateChange(latestMetric?.totalComments || 0, prevMetric?.totalComments)}
-                data={metrics.map(m => ({ v: m.totalComments }))}
+                title="Positive Comments"
+                value={aggregatedMetrics?.positiveComments.toLocaleString() || 'N/A'}
+                change={calculateChange(
+                  (latestMetric?.positiveComments || (latestMetric ? Math.max(0, latestMetric.totalComments - latestMetric.negativeComments) : 0)),
+                  (prevMetric?.positiveComments || (prevMetric ? Math.max(0, prevMetric.totalComments - prevMetric.negativeComments) : 0))
+                )}
+                data={metrics.map(m => ({ v: m.positiveComments || Math.max(0, m.totalComments - m.negativeComments) }))}
                 dataKey="v"
-                strokeColor="#A371F7"
+                strokeColor="#10B981"
                 fullMetrics={metrics}
                 metricKey="totalComments"
-                description={METRIC_DESCRIPTIONS.totalComments}
-                onClick={() => setSelectedMetric({ key: 'totalComments', title: 'Comments', strokeColor: '#A371F7' })}
+                description={METRIC_DESCRIPTIONS.positiveComments}
+                onClick={() => setSelectedMetric({ key: 'totalComments', title: 'Positive Comments', strokeColor: '#10B981' })}
+              />
+              <SparklineCard
+                title="Avg. Mentions/Day"
+                value={aggregatedMetrics?.avgMentionsPerDay.toLocaleString() || 'N/A'}
+                change={calculateChange(
+                  latestMetric?.dailyMentions || 0,
+                  prevMetric?.dailyMentions || 0
+                )}
+                data={metrics.map(m => ({ v: m.dailyMentions }))}
+                dataKey="v"
+                strokeColor="#F0883E"
+                fullMetrics={metrics}
+                metricKey="dailyMentions"
+                description={METRIC_DESCRIPTIONS.avgMentionsPerDay}
+                onClick={() => setSelectedMetric({ key: 'dailyMentions', title: 'Avg. Mentions/Day', strokeColor: '#F0883E' })}
               />
               <SparklineCard
                 title="Reach"
@@ -411,11 +477,11 @@ const App: React.FC = () => {
                 change={calculateChange(latestMetric?.reach || 0, prevMetric?.reach)}
                 data={metrics.map(m => ({ v: m.reach }))}
                 dataKey="v"
-                strokeColor="#F0883E"
+                strokeColor="#9333EA"
                 fullMetrics={metrics}
                 metricKey="reach"
                 description={METRIC_DESCRIPTIONS.reach}
-                onClick={() => setSelectedMetric({ key: 'reach', title: 'Reach', strokeColor: '#F0883E' })}
+                onClick={() => setSelectedMetric({ key: 'reach', title: 'Reach', strokeColor: '#9333EA' })}
               />
               <SparklineCard
                 title="Sentiment"

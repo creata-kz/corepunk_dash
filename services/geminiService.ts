@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI, Chat } from "@google/genai";
 import { DailyMetric, ProductionActivity, Comment } from '../types';
 
@@ -101,6 +100,143 @@ I've analyzed the recent data. The 'Champion Class Rebalance (Nerf)' on ${contex
        console.error("Error calling Gemini API for trend analysis:", error);
        return "Error: Could not get a trend analysis from the AI.";
      }
+  }
+
+  /**
+   * Analyze sentiment of a single text using AI
+   * @param text - The text to analyze (post or comment)
+   * @returns Sentiment - "Positive", "Negative", or "Neutral"
+   */
+  public async analyzeSentiment(text: string): Promise<'Positive' | 'Negative' | 'Neutral'> {
+    if (!this.isInitialized || !process.env.GEMINI_API_KEY) {
+      // Fallback to simple keyword-based analysis in demo mode
+      return this.fallbackSentimentAnalysis(text);
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+    const sentimentPrompt = `
+      Analyze the sentiment of the following text from a gaming community post or comment.
+      Respond with ONLY ONE WORD: "Positive", "Negative", or "Neutral".
+
+      Rules:
+      - "Positive" = Excitement, satisfaction, praise, constructive feedback
+      - "Negative" = Complaints, frustration, bugs, anger, disappointment
+      - "Neutral" = Questions, neutral observations, informational content
+
+      Text to analyze: "${text}"
+
+      Your response (one word only):
+    `;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: sentimentPrompt,
+      });
+
+      const sentiment = response.text.trim();
+
+      // Validate response
+      if (sentiment === 'Positive' || sentiment === 'Negative' || sentiment === 'Neutral') {
+        return sentiment;
+      }
+
+      // If invalid response, fallback
+      console.warn(`Invalid sentiment response: ${sentiment}, using fallback`);
+      return this.fallbackSentimentAnalysis(text);
+    } catch (error) {
+      console.error("Error analyzing sentiment:", error);
+      return this.fallbackSentimentAnalysis(text);
+    }
+  }
+
+  /**
+   * Analyze sentiment for multiple texts in batch (more efficient)
+   * @param texts - Array of texts to analyze
+   * @returns Array of sentiments
+   */
+  public async analyzeSentimentBatch(texts: string[]): Promise<('Positive' | 'Negative' | 'Neutral')[]> {
+    if (!this.isInitialized || !process.env.GEMINI_API_KEY) {
+      return texts.map(text => this.fallbackSentimentAnalysis(text));
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+    const sentimentPrompt = `
+      Analyze the sentiment of the following gaming community posts/comments.
+      For each text, respond with ONLY: "Positive", "Negative", or "Neutral".
+
+      Rules:
+      - "Positive" = Excitement, satisfaction, praise, constructive feedback
+      - "Negative" = Complaints, frustration, bugs, anger, disappointment
+      - "Neutral" = Questions, neutral observations, informational content
+
+      Texts to analyze:
+      ${texts.map((text, i) => `${i + 1}. "${text}"`).join('\n')}
+
+      Respond with ONLY the sentiments, one per line, in the same order:
+    `;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: sentimentPrompt,
+      });
+
+      const lines = response.text.trim().split('\n').map(line => line.trim());
+      const sentiments = lines.map(line => {
+        if (line === 'Positive' || line === 'Negative' || line === 'Neutral') {
+          return line;
+        }
+        return 'Neutral'; // Default fallback
+      });
+
+      // Ensure we have same number of results
+      if (sentiments.length !== texts.length) {
+        console.warn('Batch sentiment count mismatch, using fallback');
+        return texts.map(text => this.fallbackSentimentAnalysis(text));
+      }
+
+      return sentiments as ('Positive' | 'Negative' | 'Neutral')[];
+    } catch (error) {
+      console.error("Error in batch sentiment analysis:", error);
+      return texts.map(text => this.fallbackSentimentAnalysis(text));
+    }
+  }
+
+  /**
+   * Simple keyword-based sentiment analysis fallback
+   */
+  private fallbackSentimentAnalysis(text: string): 'Positive' | 'Negative' | 'Neutral' {
+    const lowerText = text.toLowerCase();
+
+    const positiveKeywords = [
+      'love', 'great', 'awesome', 'amazing', 'excellent', 'fantastic', 'good', 'nice',
+      'best', 'perfect', 'thanks', 'thank', 'appreciate', 'impressed', 'beautiful',
+      'wonderful', 'fun', 'enjoy', 'excited', 'happy', 'cool', 'brilliant'
+    ];
+
+    const negativeKeywords = [
+      'bug', 'broken', 'crash', 'lag', 'worst', 'terrible', 'awful', 'bad', 'hate',
+      'suck', 'garbage', 'trash', 'useless', 'disappointed', 'frustrat', 'angry',
+      'annoying', 'nerf', 'unplayable', 'refund', 'quit', 'boring', 'waste'
+    ];
+
+    let positiveScore = 0;
+    let negativeScore = 0;
+
+    positiveKeywords.forEach(keyword => {
+      if (lowerText.includes(keyword)) positiveScore++;
+    });
+
+    negativeKeywords.forEach(keyword => {
+      if (lowerText.includes(keyword)) negativeScore++;
+    });
+
+    if (positiveScore > negativeScore) return 'Positive';
+    if (negativeScore > positiveScore) return 'Negative';
+    return 'Neutral';
   }
 }
 

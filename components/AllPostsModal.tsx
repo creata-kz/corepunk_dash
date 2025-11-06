@@ -50,6 +50,13 @@ export const AllPostsModal: React.FC<AllPostsModalProps> = ({ isOpen, onClose, p
                                             }`}>
                                                 {postData.post.source}
                                             </span>
+                                            <span className={`text-xs font-medium px-2 py-0.5 rounded border ${
+                                                postData.post.sentiment === 'Positive' ? 'bg-teal-500/20 text-teal-400 border-teal-500/30' :
+                                                postData.post.sentiment === 'Negative' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                                'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                                            }`}>
+                                                {postData.post.sentiment === 'Positive' ? '😊' : postData.post.sentiment === 'Negative' ? '😟' : '😐'} {postData.post.sentiment}
+                                            </span>
                                             <span className="text-xs text-brand-text-secondary">
                                                 {new Date(postData.post.timestamp).toLocaleDateString()}
                                             </span>
