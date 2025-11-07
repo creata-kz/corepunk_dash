@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, TooltipProps } from 'recharts';
 import { DailyMetric } from '../types';
 
@@ -134,21 +134,97 @@ export const SparklineCard: React.FC<SparklineCardProps> = ({
   // Получаем последние 7 дней из fullMetrics
   const last7DaysMetrics = fullMetrics ? fullMetrics.slice(-7) : undefined;
 
+  // Расчет топ платформ по вкладу в метрику
+  const platformBreakdown = useMemo(() => {
+    if (!fullMetrics || !metricKey || fullMetrics.length === 0) return null;
+
+    // Маппинг ключей метрик на ключи в byPlatform
+    const metricKeyMap: Record<string, keyof DailyMetric['byPlatform'][string] | undefined> = {
+      'dailyMentions': 'dailyMentions',
+      'likes': 'likes',
+      'totalComments': 'comments',
+      'reach': 'reach',
+      'negativeComments': 'negativeComments',
+    };
+
+    const platformKey = metricKeyMap[metricKey as string];
+    if (!platformKey) return null;
+
+    // Суммируем по платформам
+    const platformTotals: Record<string, number> = {};
+    let totalValue = 0;
+
+    fullMetrics.forEach(metric => {
+      if (metric.byPlatform) {
+        Object.entries(metric.byPlatform).forEach(([platform, data]) => {
+          const val = data[platformKey] || 0;
+          platformTotals[platform] = (platformTotals[platform] || 0) + val;
+          totalValue += val;
+        });
+      }
+    });
+
+    if (totalValue === 0) return null;
+
+    // Сортируем по вкладу и берем топ-3
+    const sorted = Object.entries(platformTotals)
+      .map(([platform, value]) => ({
+        platform,
+        value,
+        percentage: Math.round((value / totalValue) * 100)
+      }))
+      .filter(p => p.percentage > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 3);
+
+    return sorted.length > 0 ? sorted : null;
+  }, [fullMetrics, metricKey]);
+
+  // Иконки и цвета для платформ
+  const platformStyles: Record<string, { emoji: string; color: string }> = {
+    'Reddit': { emoji: '🔴', color: 'text-orange-400' },
+    'Youtube': { emoji: '📺', color: 'text-red-400' },
+    'Tiktok': { emoji: '🎵', color: 'text-pink-400' },
+    'Vk': { emoji: '🔵', color: 'text-blue-400' },
+    'Discord': { emoji: '💬', color: 'text-indigo-400' },
+    'Twitter': { emoji: '🐦', color: 'text-sky-400' },
+    'Instagram': { emoji: '📸', color: 'text-purple-400' },
+  };
+
   return (
     <div
       className={`glass-card p-4 rounded-xl flex flex-col h-40 relative ${onClick ? 'cursor-pointer hover:border-brand-primary transition-all' : ''}`}
       onClick={onClick}
     >
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0 pr-2">
           <h3 className="text-brand-text-secondary text-sm font-medium mb-2">{title}</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-1">
             <p className="text-2xl font-semibold text-brand-text-primary">{value}</p>
             <div className={`flex items-center text-sm font-medium ${changeColor} whitespace-nowrap`}>
                 {isPositive ? <ArrowUpIcon/> : <ArrowDownIcon/>}
                 <span>{Math.abs(change).toFixed(1)}%</span>
             </div>
           </div>
+
+          {/* Platform breakdown badges */}
+          {platformBreakdown && (
+            <div className="flex gap-1 flex-wrap">
+              {platformBreakdown.map(({ platform, percentage }) => {
+                const style = platformStyles[platform] || { emoji: '📊', color: 'text-gray-400' };
+                return (
+                  <span
+                    key={platform}
+                    className={`text-[10px] ${style.color} flex items-center gap-0.5 px-1 py-0.5 bg-white/5 rounded`}
+                    title={`${platform}: ${percentage}%`}
+                  >
+                    <span>{style.emoji}</span>
+                    <span className="font-medium">{percentage}%</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Info Button */}

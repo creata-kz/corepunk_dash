@@ -415,19 +415,16 @@ const App: React.FC = () => {
                 onClick={() => setSelectedMetric({ key: 'dailyMentions', title: 'Daily Mentions', strokeColor: '#388BFD' })}
               />
               <SparklineCard
-                title="Engagement Rate"
-                value={`${aggregatedMetrics?.engagementRate.toFixed(2) || '0'}%`}
-                change={calculateChange(
-                  latestMetric && latestMetric.reach > 0 ? (latestMetric.engagementScore / latestMetric.reach) * 100 : 0,
-                  prevMetric && prevMetric.reach > 0 ? (prevMetric.engagementScore / prevMetric.reach) * 100 : 0
-                )}
-                data={metrics.map(m => ({ v: m.reach > 0 ? (m.engagementScore / m.reach) * 100 : 0 }))}
+                title="Engagement"
+                value={aggregatedMetrics?.engagementScore.toLocaleString() || 'N/A'}
+                change={calculateChange(latestMetric?.engagementScore || 0, prevMetric?.engagementScore)}
+                data={metrics.map(m => ({ v: m.engagementScore }))}
                 dataKey="v"
                 strokeColor="#1F883D"
                 fullMetrics={metrics}
                 metricKey="engagementScore"
-                description={METRIC_DESCRIPTIONS.engagementRate}
-                onClick={() => setSelectedMetric({ key: 'engagementScore', title: 'Engagement Rate', strokeColor: '#1F883D' })}
+                description={METRIC_DESCRIPTIONS.engagementScore}
+                onClick={() => setSelectedMetric({ key: 'engagementScore', title: 'Engagement', strokeColor: '#1F883D' })}
               />
               <SparklineCard
                 title="Likes"
