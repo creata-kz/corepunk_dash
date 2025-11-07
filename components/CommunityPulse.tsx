@@ -185,6 +185,8 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
                                         postData.post.source === 'Reddit' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
                                         postData.post.source === 'Youtube' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
                                         postData.post.source === 'Tiktok' ? 'bg-pink-500/20 text-pink-400 border-pink-500/30' :
+                                        postData.post.source === 'Instagram' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                                        postData.post.source === 'Twitter' ? 'bg-sky-500/20 text-sky-400 border-sky-500/30' :
                                         'bg-gray-500/20 text-gray-400 border-gray-500/30'
                                     }`}>
                                         {postData.post.source}

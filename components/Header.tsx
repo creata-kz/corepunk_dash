@@ -136,9 +136,11 @@ const PlatformFilter: React.FC<{
         { id: 'all', label: 'All' },
         { id: 'Reddit', label: 'Reddit', icon: '🔴' },
         { id: 'Youtube', label: 'YouTube', icon: '📺' },
+        { id: 'Instagram', label: 'Instagram', icon: '📸' },
+        { id: 'Twitter', label: 'Twitter', icon: '🐦' },
+        { id: 'Tiktok', label: 'TikTok', icon: '🎵' },
         { id: 'Vk', label: 'VK', icon: '🔵' },
         { id: 'Discord', label: 'Discord', icon: '💬' },
-        { id: 'Tiktok', label: 'TikTok', icon: '🎵' },
     ];
 
     return (

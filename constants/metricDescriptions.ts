@@ -1,7 +1,7 @@
 export const METRIC_DESCRIPTIONS = {
     dailyMentions: "Total number of posts and comments mentioning Corepunk across all platforms. Tracks overall discussion volume and community activity.",
 
-    engagementScore: "Calculated engagement metric combining likes, comments, shares and reach. Higher scores indicate stronger community interaction and content resonance.",
+    engagementScore: "Calculated engagement metric combining likes, comments, and reach. Formula: Likes × 1.5 + Comments × 2 + Reach × 0.1. Higher scores indicate stronger community interaction and content resonance.",
 
     likes: "Total number of likes/upvotes across all platforms. Includes Reddit upvotes, YouTube likes, VK likes, and TikTok hearts. Measures positive reception.",
 

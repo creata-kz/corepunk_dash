@@ -138,31 +138,49 @@ export const SparklineCard: React.FC<SparklineCardProps> = ({
   const platformBreakdown = useMemo(() => {
     if (!fullMetrics || !metricKey || fullMetrics.length === 0) return null;
 
-    // Маппинг ключей метрик на ключи в byPlatform
-    const metricKeyMap: Record<string, keyof DailyMetric['byPlatform'][string] | undefined> = {
-      'dailyMentions': 'dailyMentions',
-      'likes': 'likes',
-      'totalComments': 'comments',
-      'reach': 'reach',
-      'negativeComments': 'negativeComments',
-    };
-
-    const platformKey = metricKeyMap[metricKey as string];
-    if (!platformKey) return null;
-
     // Суммируем по платформам
     const platformTotals: Record<string, number> = {};
     let totalValue = 0;
 
-    fullMetrics.forEach(metric => {
-      if (metric.byPlatform) {
-        Object.entries(metric.byPlatform).forEach(([platform, data]) => {
-          const val = data[platformKey] || 0;
-          platformTotals[platform] = (platformTotals[platform] || 0) + val;
-          totalValue += val;
-        });
-      }
-    });
+    // Специальная обработка для engagementScore
+    if (metricKey === 'engagementScore') {
+      fullMetrics.forEach(metric => {
+        if (metric.byPlatform) {
+          Object.entries(metric.byPlatform).forEach(([platform, data]) => {
+            // Вычисляем engagement score для платформы: likes * 1.5 + comments * 2 + reach * 0.1
+            const engagement = Math.round(
+              (data.likes || 0) * 1.5 +
+              (data.comments || 0) * 2 +
+              (data.reach || 0) * 0.1
+            );
+            platformTotals[platform] = (platformTotals[platform] || 0) + engagement;
+            totalValue += engagement;
+          });
+        }
+      });
+    } else {
+      // Обычные метрики с прямым маппингом
+      const metricKeyMap: Record<string, keyof DailyMetric['byPlatform'][string] | undefined> = {
+        'dailyMentions': 'dailyMentions',
+        'likes': 'likes',
+        'totalComments': 'comments',
+        'reach': 'reach',
+        'negativeComments': 'negativeComments',
+      };
+
+      const platformKey = metricKeyMap[metricKey as string];
+      if (!platformKey) return null;
+
+      fullMetrics.forEach(metric => {
+        if (metric.byPlatform) {
+          Object.entries(metric.byPlatform).forEach(([platform, data]) => {
+            const val = data[platformKey] || 0;
+            platformTotals[platform] = (platformTotals[platform] || 0) + val;
+            totalValue += val;
+          });
+        }
+      });
+    }
 
     if (totalValue === 0) return null;
 

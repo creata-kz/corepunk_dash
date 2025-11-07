@@ -93,4 +93,4 @@ export interface CustomDateRange {
     endDate: string;   // YYYY-MM-DD
 }
 
-export type PlatformFilter = 'all' | 'Reddit' | 'Youtube' | 'Vk' | 'Discord' | 'Tiktok';
+export type PlatformFilter = 'all' | 'Reddit' | 'Youtube' | 'Vk' | 'Discord' | 'Tiktok' | 'Instagram' | 'Twitter';
