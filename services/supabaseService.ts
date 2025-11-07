@@ -707,10 +707,22 @@ class SupabaseService {
   }
 
   private capitalizeFirstLetter(str: string): string {
-    // Special handling for TikTok
-    if (str.toLowerCase() === 'tiktok') {
-      return 'Tiktok';
+    // Special handling for platform names to match PlatformFilter type
+    const platformMap: Record<string, string> = {
+      'tiktok': 'Tiktok',
+      'reddit': 'Reddit',
+      'youtube': 'Youtube',
+      'instagram': 'Instagram',
+      'twitter': 'Twitter',
+      'vk': 'Vk',
+      'discord': 'Discord',
+    };
+
+    const lowerStr = str.toLowerCase();
+    if (platformMap[lowerStr]) {
+      return platformMap[lowerStr];
     }
+
     return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
