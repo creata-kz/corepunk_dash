@@ -35,17 +35,25 @@ class SupabaseService {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
+    console.log('🔧 Supabase constructor called');
+    console.log('   URL present:', !!supabaseUrl, supabaseUrl ? `(${supabaseUrl.substring(0, 30)}...)` : '');
+    console.log('   KEY present:', !!supabaseKey, supabaseKey ? `(${supabaseKey.substring(0, 20)}...)` : '');
+
     if (supabaseUrl && supabaseKey) {
       try {
         this.client = createClient(supabaseUrl, supabaseKey);
         this.isInitialized = true;
         console.log('✅ Supabase client initialized');
+        console.log('   Client URL:', this.client.supabaseUrl);
+        console.log('   Client has rest:', !!this.client.rest);
       } catch (error) {
         console.error('❌ Failed to initialize Supabase client:', error);
         this.isInitialized = false;
       }
     } else {
       console.warn('⚠️ Supabase credentials not found. Running in demo mode.');
+      console.warn('   URL:', supabaseUrl);
+      console.warn('   KEY:', supabaseKey ? `${supabaseKey.substring(0, 20)}...` : 'undefined');
     }
   }
 
@@ -54,6 +62,34 @@ class SupabaseService {
    */
   public isConnected(): boolean {
     return this.isInitialized && this.client !== null;
+  }
+
+  /**
+   * Простой тест подключения - получить 1 запись из events
+   */
+  public async testConnection(): Promise<{ success: boolean; error?: any; data?: any }> {
+    if (!this.isConnected() || !this.client) {
+      return { success: false, error: 'Not connected' };
+    }
+
+    try {
+      console.log('🧪 Testing Supabase connection with simple query...');
+      const { data, error } = await this.client
+        .from('events')
+        .select('event_id, platform')
+        .limit(1);
+
+      console.log('🧪 Test result:', { data, error });
+
+      if (error) {
+        return { success: false, error };
+      }
+
+      return { success: true, data };
+    } catch (err) {
+      console.error('🧪 Test exception:', err);
+      return { success: false, error: err };
+    }
   }
 
   /**
@@ -96,6 +132,7 @@ class SupabaseService {
    */
   public async getSnapshotMetrics(days: number = 90): Promise<DailyMetric[]> {
     if (!this.isConnected() || !this.client) {
+      console.warn('⚠️ Supabase not connected in getSnapshotMetrics');
       return [];
     }
 
@@ -104,24 +141,26 @@ class SupabaseService {
       startDate.setDate(startDate.getDate() - days);
       const startDateStr = startDate.toISOString().split('T')[0];
 
+      console.log(`📊 Fetching snapshot metrics from ${startDateStr} (last ${days} days)`);
+
       const { data, error } = await this.client
         .from('metric_snapshots')
         .select('*')
         .gte('snapshot_date', startDateStr)
         .order('snapshot_date', { ascending: true });
 
+      console.log('📊 Snapshot query result:', { dataLength: data?.length, hasError: !!error });
+
       if (error) {
-        console.error('Error fetching snapshot metrics:', error);
+        console.error('❌ Error fetching snapshot metrics:', error);
         return this.aggregateMetricsFromEvents(days);
       }
 
       // Если snapshots есть, используем их
       if (data && data.length > 0) {
         const snapshotMetrics = this.transformSnapshotsToMetrics(data as SupabaseSnapshot[]);
-
-        // Если все метрики нулевые, используем агрегацию из событий
         const hasNonZeroMetrics = snapshotMetrics.some(m =>
-          m.dau > 0 || m.revenue > 0 || m.likes > 0 || m.shares > 0 || m.reach > 0
+          m.dailyMentions > 0 || m.engagementScore > 0 || m.likes > 0 || m.totalComments > 0 || m.reach > 0
         );
 
         if (hasNonZeroMetrics) {
@@ -130,7 +169,6 @@ class SupabaseService {
         }
       }
 
-      // Fallback: агрегируем из событий
       console.log('⚠️ Snapshots empty or all zeros, aggregating from events');
       return this.aggregateMetricsFromEvents(days);
     } catch (error) {
@@ -145,6 +183,7 @@ class SupabaseService {
    */
   private async aggregateMetricsFromEvents(days: number): Promise<DailyMetric[]> {
     if (!this.isConnected() || !this.client) {
+      console.warn('⚠️ Supabase not connected in aggregateMetricsFromEvents');
       return [];
     }
 
@@ -152,12 +191,16 @@ class SupabaseService {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
+      console.log(`📈 Aggregating metrics from events since ${startDate.toISOString()}`);
+
       // Получаем все события за период
       const { data, error } = await this.client
         .from('events')
         .select('event_timestamp, event_type, platform, value, properties')
         .gte('event_timestamp', startDate.toISOString())
         .order('event_timestamp', { ascending: true });
+
+      console.log('📈 Events query result:', { dataLength: data?.length, error: error?.message });
 
       if (error) {
         console.error('Error fetching events for aggregation:', error);
@@ -394,6 +437,7 @@ class SupabaseService {
    */
   public async getComments(days: number = 90): Promise<Comment[]> {
     if (!this.isConnected() || !this.client) {
+      console.warn('⚠️ Supabase not connected in getComments');
       return [];
     }
 
@@ -402,8 +446,8 @@ class SupabaseService {
       startDate.setDate(startDate.getDate() - days);
       const startDateStr = startDate.toISOString();
 
-      // Получаем ВСЕ посты и комментарии из всех платформ
-      // Используем простую фильтрацию - исключаем только официальные события и snapshots
+      console.log(`📥 Fetching comments from ${startDateStr} (last ${days} days)`);
+
       const { data, error } = await this.client
         .from('events')
         .select('*')
@@ -412,32 +456,32 @@ class SupabaseService {
         .order('event_timestamp', { ascending: false })
         .limit(500);
 
+      console.log('📥 Query result:', { dataLength: data?.length, hasError: !!error });
+
       if (error) {
-        console.error('Error fetching comments:', error);
+        console.error('❌ Error fetching comments:', error);
         return [];
       }
 
       console.log(`✅ Fetched ${data?.length || 0} posts/comments for Community Pulse`);
 
       if (data && data.length > 0) {
-        console.log('Sample event:', {
-          type: data[0].event_type,
-          platform: data[0].platform,
-          author: data[0].properties?.author,
-          text: (data[0].properties?.title || data[0].properties?.comment_text || '').substring(0, 50)
+        const platformCounts: Record<string, number> = {};
+        data.forEach((event: any) => {
+          platformCounts[event.platform] = (platformCounts[event.platform] || 0) + 1;
         });
+        console.log('📊 Platform distribution:', platformCounts);
       }
 
       const comments = this.transformToComments(data as SupabaseEvent[]);
       console.log(`📝 Transformed to ${comments.length} comments`);
 
       if (comments.length > 0) {
-        console.log('Sample comment:', {
-          author: comments[0].author,
-          text: comments[0].text.substring(0, 50),
-          sentiment: comments[0].sentiment,
-          source: comments[0].source
+        const sourceCounts: Record<string, number> = {};
+        comments.forEach(comment => {
+          sourceCounts[comment.source] = (sourceCounts[comment.source] || 0) + 1;
         });
+        console.log('📊 Transformed platform distribution:', sourceCounts);
       }
 
       return comments;
