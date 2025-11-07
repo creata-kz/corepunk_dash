@@ -10,14 +10,61 @@ interface TimelineChartProps {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    // Получаем данные по платформам из первого payload (все имеют одинаковый объект метрики)
+    const metricData = payload[0]?.payload;
+    const byPlatform = metricData?.byPlatform || {};
+
     return (
-      <div className="glass-card p-3 rounded-lg shadow-lg text-sm">
-        <p className="label font-bold text-brand-text-primary">{`${label}`}</p>
-        {payload.map((pld: any) => (
-          <div key={pld.dataKey} style={{ color: pld.color }}>
-            {`${pld.name}: ${pld.value.toLocaleString()}`}
-          </div>
-        ))}
+      <div className="glass-card p-3 rounded-lg shadow-lg text-sm max-w-xs">
+        <p className="label font-bold text-brand-text-primary mb-2 pb-2 border-b border-brand-border">{`${label}`}</p>
+
+        {payload.map((pld: any) => {
+          const metricKey = pld.dataKey;
+
+          return (
+            <div key={pld.dataKey} className="mb-2">
+              <div style={{ color: pld.color }} className="font-semibold mb-1">
+                {`${pld.name}: ${pld.value.toLocaleString()}`}
+              </div>
+
+              {Object.keys(byPlatform).length > 0 && (
+                <div className="ml-3 text-xs text-brand-text-secondary space-y-0.5">
+                  {Object.entries(byPlatform).map(([platform, data]: [string, any]) => {
+                    let value = 0;
+
+                    // Вычисляем значение в зависимости от метрики
+                    switch (metricKey) {
+                      case 'likes':
+                        value = data.likes || 0;
+                        break;
+                      case 'reach':
+                        value = data.reach || 0;
+                        break;
+                      case 'negativeComments':
+                        value = data.negativeComments || 0;
+                        break;
+                      case 'positiveComments':
+                        // Позитивные = всего комментариев - негативные
+                        value = Math.max(0, (data.comments || 0) - (data.negativeComments || 0));
+                        break;
+                      default:
+                        return null;
+                    }
+
+                    if (value > 0) {
+                      return (
+                        <div key={platform}>
+                          {platform}: {value.toLocaleString()}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }).filter(Boolean)}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -45,21 +92,21 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({ metrics, activitie
           margin={{ top: 15, right: 20, left: -10, bottom: 5 }}
         >
           <defs>
-            <linearGradient id="colorDau" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#388BFD" stopOpacity={0.4}/>
-              <stop offset="95%" stopColor="#388BFD" stopOpacity={0}/>
-            </linearGradient>
-            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#1F883D" stopOpacity={0.4}/>
-              <stop offset="95%" stopColor="#1F883D" stopOpacity={0}/>
-            </linearGradient>
-             <linearGradient id="colorLikes" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="colorLikes" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#DB61A2" stopOpacity={0.4}/>
               <stop offset="95%" stopColor="#DB61A2" stopOpacity={0}/>
             </linearGradient>
-             <linearGradient id="colorNegative" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="colorNegative" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#F85149" stopOpacity={0.4}/>
               <stop offset="95%" stopColor="#F85149" stopOpacity={0}/>
+            </linearGradient>
+            <linearGradient id="colorReach" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#9333EA" stopOpacity={0.4}/>
+              <stop offset="95%" stopColor="#9333EA" stopOpacity={0}/>
+            </linearGradient>
+            <linearGradient id="colorPositive" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#10B981" stopOpacity={0.4}/>
+              <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
             </linearGradient>
           </defs>
 
@@ -100,9 +147,9 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({ metrics, activitie
               )
           })}
           
-          <Area yAxisId="left" type="monotone" dataKey="dau" name="DAU" stroke="#388BFD" strokeWidth={2} fillOpacity={1} fill="url(#colorDau)" dot={false} />
-          <Area yAxisId="right" type="monotone" dataKey="revenue" name="Revenue ($)" stroke="#1F883D" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" dot={false} />
-          <Area yAxisId="right" type="monotone" dataKey="likes" name="Likes" stroke="#DB61A2" strokeWidth={2} fillOpacity={1} fill="url(#colorLikes)" dot={false} />
+          <Area yAxisId="left" type="monotone" dataKey="likes" name="Likes" stroke="#DB61A2" strokeWidth={2} fillOpacity={1} fill="url(#colorLikes)" dot={false} />
+          <Area yAxisId="left" type="monotone" dataKey="positiveComments" name="Positive Comments" stroke="#10B981" strokeWidth={2} fillOpacity={1} fill="url(#colorPositive)" dot={false} />
+          <Area yAxisId="right" type="monotone" dataKey="reach" name="Reach" stroke="#9333EA" strokeWidth={2} fillOpacity={1} fill="url(#colorReach)" dot={false} />
           <Area yAxisId="right" type="monotone" dataKey="negativeComments" name="Negative Comments" stroke="#F85149" strokeWidth={2} fillOpacity={1} fill="url(#colorNegative)" dot={false} />
 
         </AreaChart>

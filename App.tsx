@@ -77,7 +77,7 @@ const App: React.FC = () => {
         const [metrics, activities, comments] = await Promise.all([
           supabaseService.getSnapshotMetrics(90),
           supabaseService.getActivities(90),
-          supabaseService.getComments(90)
+          supabaseService.getComments(365)  // 1 year for posts
         ]);
 
         // Check if we have any data
@@ -324,9 +324,9 @@ const App: React.FC = () => {
     };
   }, [metrics]);
 
-  // Get last two periods for comparison (for change percentage)
+  // Get last period and 2 days ago for comparison (for change percentage)
   const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
-  const prevMetric = metrics.length > 1 ? metrics[metrics.length - 2] : null;
+  const prevMetric = metrics.length > 2 ? metrics[metrics.length - 3] : null;
 
   const calculateChange = (current: number, previous: number | undefined): number => {
     if (previous === undefined || previous === 0) return 0;

@@ -48,10 +48,34 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
 
     // Группируем комментарии по постам с фильтрацией по sentiment
     const postsWithComments = useMemo(() => {
+        console.log(`🎯 CommunityPulse: Processing ${comments.length} comments`);
+
+        // Count by source
+        const bySource = comments.reduce((acc, c) => {
+            acc[c.source] = (acc[c.source] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+        console.log('📊 Comments by source:', bySource);
+
+        // Count posts
+        const postsCount = comments.filter(c => c.metadata?.is_post).length;
+        console.log(`📌 Total posts (is_post=true): ${postsCount}/${comments.length}`);
+
+        // Count Twitter posts specifically
+        const twitterPosts = comments.filter(c => c.source === 'Twitter' && c.metadata?.is_post);
+        console.log(`🐦 Twitter posts received: ${twitterPosts.length}`);
+        if (twitterPosts.length > 0) {
+            twitterPosts.slice(0, 3).forEach((post, i) => {
+                console.log(`   ${i + 1}. post_id: ${post.metadata?.post_id || '(EMPTY!)'} | text: "${post.text.substring(0, 50)}..."`);
+            });
+        }
+
         // Фильтруем комментарии по выбранному sentiment
         const filteredComments = sentimentFilter === 'all'
             ? comments
             : comments.filter(c => c.sentiment === sentimentFilter);
+
+        console.log(`🔽 After sentiment filter (${sentimentFilter}): ${filteredComments.length} comments`);
 
         const postsMap = new Map<string, Comment>();
         const commentsByPostId = new Map<string, Comment[]>();
@@ -70,6 +94,8 @@ export const CommunityPulse: React.FC<CommunityPulseProps> = ({ comments, onOpen
                 commentsByPostId.get(postId)!.push(item);
             }
         });
+
+        console.log(`📬 Posts map size: ${postsMap.size}`);
 
         // Создаем PostWithComments для каждого поста
         const result: PostWithComments[] = Array.from(postsMap.entries()).map(([postId, post]) => {

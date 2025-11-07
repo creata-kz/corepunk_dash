@@ -254,7 +254,10 @@ class SupabaseService {
         // Считаем посты и комментарии для dailyMentions
         if (event.event_type.includes('post') ||
             event.event_type === 'video_mention' ||
-            event.event_type === 'vk_mention') {  // VK posts
+            event.event_type === 'vk_mention' ||
+            event.event_type === 'instagram_mention' ||
+            event.event_type === 'twitter_mention' ||
+            event.event_type === 'twitter_comment_mention') {  // Instagram and Twitter posts
           metric.posts!++;
           metric.byPlatform![platform].dailyMentions++;
         }
@@ -264,12 +267,15 @@ class SupabaseService {
           metric.byPlatform![platform].dailyMentions++;
         }
 
-        // Лайки (из Reddit score, YouTube likes, VK likes, TikTok diggCount)
+        // Лайки (из Reddit score, YouTube likes, VK likes, TikTok diggCount, Instagram, Twitter)
         let likesForThisEvent = 0;
         if (event.event_type.includes('post') ||
             event.event_type.includes('comment') ||
             event.event_type === 'video_mention' ||
-            event.event_type === 'vk_mention') {  // VK posts
+            event.event_type === 'vk_mention' ||
+            event.event_type === 'instagram_mention' ||
+            event.event_type === 'twitter_mention' ||
+            event.event_type === 'twitter_comment_mention') {
           if (props.score && props.score > 1) {
             likesForThisEvent += props.score - 1; // Reddit score включает сам пост
           }
@@ -283,13 +289,20 @@ class SupabaseService {
           metric.byPlatform![platform].likes += likesForThisEvent;
         }
 
-        // Value field (Reddit uses this for score, TikTok for likes, VK for likes)
+        // Value field (Reddit uses this for score, TikTok/VK/Instagram/Twitter for likes)
         if (event.value && (event.event_type.includes('post') ||
                             event.event_type === 'video_mention' ||
-                            event.event_type === 'vk_mention')) {  // VK posts
+                            event.event_type === 'vk_mention' ||
+                            event.event_type === 'instagram_mention' ||
+                            event.event_type === 'twitter_mention' ||
+                            event.event_type === 'twitter_comment_mention')) {
           let valueAsLikes = 0;
-          if (event.event_type === 'video_mention' || event.event_type === 'vk_mention') {
-            // TikTok and VK value is already likes count
+          if (event.event_type === 'video_mention' ||
+              event.event_type === 'vk_mention' ||
+              event.event_type === 'instagram_mention' ||
+              event.event_type === 'twitter_mention' ||
+              event.event_type === 'twitter_comment_mention') {
+            // TikTok, VK, Instagram, Twitter value is already likes count
             valueAsLikes = event.value;
           } else {
             // Reddit score includes the post itself
@@ -435,7 +448,7 @@ class SupabaseService {
    * Получение постов и комментариев пользователей для Community Pulse
    * Включает посты и комментарии со всех платформ
    */
-  public async getComments(days: number = 90): Promise<Comment[]> {
+  public async getComments(days: number = 365): Promise<Comment[]> {
     if (!this.isConnected() || !this.client) {
       console.warn('⚠️ Supabase not connected in getComments');
       return [];
@@ -454,7 +467,7 @@ class SupabaseService {
         .gte('event_timestamp', startDateStr)
         .not('event_type', 'in', '(release,hotfix,marketing_campaign,community_event,pr_publication,video_stats_snapshot)')
         .order('event_timestamp', { ascending: false })
-        .limit(500);
+        .limit(1000);  // Increased from 500 to include all events (currently ~860)
 
       console.log('📥 Query result:', { dataLength: data?.length, hasError: !!error });
 
@@ -476,15 +489,37 @@ class SupabaseService {
       const comments = this.transformToComments(data as SupabaseEvent[]);
       console.log(`📝 Transformed to ${comments.length} comments`);
 
-      if (comments.length > 0) {
+      // Log Twitter posts before deduplication
+      const twitterPostsBefore = comments.filter(c => c.source === 'Twitter' && c.metadata?.is_post);
+      console.log(`🐦 Twitter posts BEFORE dedup: ${twitterPostsBefore.length}`);
+      if (twitterPostsBefore.length > 0) {
+        twitterPostsBefore.slice(0, 5).forEach((post, i) => {
+          console.log(`   ${i + 1}. post_id: ${post.metadata?.post_id || '(EMPTY!)'} | is_post: ${post.metadata?.is_post} | text: "${post.text.substring(0, 50)}..."`);
+        });
+      }
+
+      // Дедупликация комментариев по тексту + автор + timestamp (в пределах минуты)
+      const uniqueComments = this.deduplicateComments(comments);
+      console.log(`🔄 After deduplication: ${uniqueComments.length} comments (removed ${comments.length - uniqueComments.length} duplicates)`);
+
+      // Log Twitter posts after deduplication
+      const twitterPostsAfter = uniqueComments.filter(c => c.source === 'Twitter' && c.metadata?.is_post);
+      console.log(`🐦 Twitter posts AFTER dedup: ${twitterPostsAfter.length}`);
+      if (twitterPostsAfter.length > 0) {
+        twitterPostsAfter.slice(0, 5).forEach((post, i) => {
+          console.log(`   ${i + 1}. post_id: ${post.metadata?.post_id || '(EMPTY!)'} | is_post: ${post.metadata?.is_post} | text: "${post.text.substring(0, 50)}..."`);
+        });
+      }
+
+      if (uniqueComments.length > 0) {
         const sourceCounts: Record<string, number> = {};
-        comments.forEach(comment => {
+        uniqueComments.forEach(comment => {
           sourceCounts[comment.source] = (sourceCounts[comment.source] || 0) + 1;
         });
         console.log('📊 Transformed platform distribution:', sourceCounts);
       }
 
-      return comments;
+      return uniqueComments;
     } catch (error) {
       console.error('Error in getComments:', error);
       return [];
@@ -546,43 +581,11 @@ class SupabaseService {
   }
 
   private transformSnapshotsToMetrics(snapshots: SupabaseSnapshot[]): DailyMetric[] {
-    const metricsMap = new Map<string, DailyMetric>();
-
-    snapshots.forEach(snapshot => {
-      const date = snapshot.snapshot_date;
-
-      if (!metricsMap.has(date)) {
-        metricsMap.set(date, {
-          date,
-          dau: 0,
-          revenue: 0,
-          retention: 0,
-          negativeComments: 0,
-          likes: 0,
-          shares: 0,
-          reach: 0,
-        });
-      }
-
-      const metric = metricsMap.get(date)!;
-      const m = snapshot.metrics;
-
-      // Суммируем метрики из разных платформ
-      metric.likes += m.likes || m.like_count || 0;
-      metric.shares += m.shares || m.retweets || m.reposts || 0;
-      metric.reach += m.reach || m.views || m.view_count || 0;
-
-      // DAU и revenue берем из игровой статистики если есть
-      if (snapshot.platform === 'game') {
-        metric.dau = m.dau || metric.dau;
-        metric.revenue = m.revenue || metric.revenue;
-        metric.retention = m.retention || metric.retention;
-      }
-    });
-
-    return Array.from(metricsMap.values()).sort((a, b) =>
-      a.date.localeCompare(b.date)
-    );
+    // NOTE: metric_snapshots содержит агрегированные данные по каналам (subscribers, views и т.д.)
+    // Эти данные НЕ подходят для отображения метрик постов/комментариев
+    // Поэтому возвращаем пустой массив, чтобы getSnapshotMetrics переключился на aggregateMetricsFromEvents
+    console.log('⚠️ metric_snapshots содержат данные каналов, а не постов - используем events');
+    return [];
   }
 
   private transformToActivities(events: SupabaseEvent[]): ProductionActivity[] {
@@ -602,6 +605,39 @@ class SupabaseService {
     });
   }
 
+  /**
+   * Дедупликация комментариев по content_id и тексту
+   */
+  private deduplicateComments(comments: Comment[]): Comment[] {
+    const seen = new Map<string, Comment>();
+
+    comments.forEach(comment => {
+      // Создаем ключ для дедупликации: текст + автор (первые 100 символов текста)
+      const key = `${comment.text.substring(0, 100)}_${comment.author}_${comment.source}`;
+
+      // Сохраняем только первый (самый свежий, так как уже отсортировано)
+      if (!seen.has(key)) {
+        seen.set(key, comment);
+      }
+    });
+
+    const result = Array.from(seen.values());
+
+    // Логируем что осталось после дедупликации
+    const bySource = result.reduce((acc, c) => {
+      acc[c.source] = (acc[c.source] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    console.log('🔄 After dedup breakdown:', bySource);
+
+    // Показываем сколько is_post
+    const postsCount = result.filter(c => c.metadata?.is_post).length;
+    console.log(`📌 Posts (is_post=true): ${postsCount}/${result.length}`);
+
+    return result;
+  }
+
   private transformToComments(events: SupabaseEvent[]): Comment[] {
     return events.map((event, index) => {
       const props = event.properties || {};
@@ -609,10 +645,11 @@ class SupabaseService {
       // Извлекаем текст из разных полей (посты и комментарии)
       const text = props.title ||  // Reddit post title
                    props.selftext ||  // Reddit post text
+                   props.caption ||  // Instagram caption
                    props.description ||  // TikTok video description
                    props.comment_text ||
                    props.comment_body ||
-                   props.text ||
+                   props.text ||  // Twitter text
                    props.message_content ||
                    props.body ||
                    props.content ||
@@ -621,6 +658,8 @@ class SupabaseService {
       // Извлекаем автора
       const rawAuthor = props.author ||
                         props.author_name ||
+                        props.author_username ||  // Twitter
+                        props.owner_username ||  // Instagram
                         props.username ||
                         props.user ||
                         'Anonymous';
@@ -636,7 +675,10 @@ class SupabaseService {
       // Определяем, это пост или комментарий
       const isPost = event.event_type.includes('post') ||
                      event.event_type === 'video_mention' ||
-                     event.event_type === 'vk_mention';  // VK posts
+                     event.event_type === 'vk_mention' ||
+                     event.event_type === 'instagram_mention' ||
+                     event.event_type === 'twitter_mention' ||
+                     event.event_type === 'twitter_comment_mention';
 
       // Определяем post_id в зависимости от платформы и типа события
       let postId: string | undefined;
@@ -856,10 +898,15 @@ class SupabaseService {
         .select('*')
         .eq('date', queryDate)
         .eq('platform_filter', platformFilter)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.warn(`No brief found for ${queryDate}:`, error.message);
+        return null;
+      }
+
+      if (!data) {
+        console.log(`📄 No brief exists for ${queryDate}, platform: ${platformFilter}`);
         return null;
       }
 
@@ -894,10 +941,15 @@ class SupabaseService {
         .eq('platform_filter', platformFilter)
         .order('date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.warn('No briefs found:', error.message);
+        return null;
+      }
+
+      if (!data) {
+        console.log(`📄 No briefs exist for platform: ${platformFilter}`);
         return null;
       }
 

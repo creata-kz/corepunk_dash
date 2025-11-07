@@ -83,6 +83,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
         'Discord': '#5865F2',
         'Tiktok': '#000000',
         'Vk': '#0077FF',
+        'Instagram': '#E4405F',
+        'Twitter': '#1DA1F2',
     };
 
     if (!isOpen || !modalRoot) return null;
