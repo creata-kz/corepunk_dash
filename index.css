@@ -1,0 +1,44 @@
+/*
+ * Дополнительные глобальные стили
+ * Основные стили находятся в index.html
+ */
+
+* {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+/* Slider styles */
+input[type="range"].slider {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="range"].slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #F0883E;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #0D1117;
+}
+
+input[type="range"].slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #F0883E;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #0D1117;
+}
+
+input[type="range"].slider::-webkit-slider-track {
+  height: 8px;
+  border-radius: 4px;
+}
+
+input[type="range"].slider::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+}

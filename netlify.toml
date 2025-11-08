@@ -1,0 +1,16 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Environment variables (set these in Netlify UI)
+# GEMINI_API_KEY - Your Google Gemini API key
+# SUPABASE_URL - Your Supabase project URL
+# SUPABASE_ANON_KEY - Your Supabase anon key
