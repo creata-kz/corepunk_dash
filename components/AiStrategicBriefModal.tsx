@@ -10,16 +10,47 @@ interface AiStrategicBriefModalProps {
     onRead: () => void;
 }
 
-export const AiStrategicBriefModal: React.FC<AiStrategicBriefModalProps> = ({ 
-    isOpen, 
-    onClose, 
+export const AiStrategicBriefModal: React.FC<AiStrategicBriefModalProps> = ({
+    isOpen,
+    onClose,
     platformFilter,
-    onRead 
+    onRead
 }) => {
     const modalRoot = document.getElementById('modal-root');
     const [fullText, setFullText] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [briefDate, setBriefDate] = useState<string>('');
+
+    // Функция для очистки текста от HTML тегов, кавычек и markdown
+    const cleanText = (text: string): string => {
+        return text
+            // Убираем markdown code blocks (```html, ```json, ``` и т.д.)
+            .replace(/```[\w]*\n?/g, '')
+            // Убираем HTML entities
+            .replace(/&quot;/g, '"')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&#39;/g, "'")
+            .replace(/&nbsp;/g, ' ')
+            // Убираем HTML теги
+            .replace(/<[^>]*>/g, '')
+            // Убираем лишние кавычки в начале и конце
+            .replace(/^["']+|["']+$/g, '')
+            // Убираем двойные кавычки внутри текста
+            .replace(/\\"/g, '"')
+            // Убираем escaped символы
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, ' ')
+            .replace(/\\r/g, '')
+            // Убираем множественные пробелы
+            .replace(/\s+/g, ' ')
+            // Убираем пробелы перед и после переносов строк
+            .replace(/ \n /g, '\n')
+            .replace(/\n /g, '\n')
+            .replace(/ \n/g, '\n')
+            .trim();
+    };
 
     useEffect(() => {
         if (isOpen) {
@@ -29,10 +60,11 @@ export const AiStrategicBriefModal: React.FC<AiStrategicBriefModalProps> = ({
                     const brief = await supabaseService.getLatestStrategicBrief(platformFilter);
 
                     if (brief) {
-                        setFullText(brief.brief_text);
+                        // Очищаем текст от HTML и кавычек
+                        setFullText(cleanText(brief.brief_text));
                         setBriefDate(brief.date);
                     } else {
-                        setFullText(`Strategic brief has not been generated yet. <br/><br/>Run the script <span class="font-mono text-brand-primary">generate_strategic_brief.py</span> to create a brief based on current metrics and community activity.`);
+                        setFullText('Strategic brief has not been generated yet. Run the script generate_strategic_brief.py to create a brief based on current metrics and community activity.');
                         setBriefDate('');
                     }
                 } catch (error) {
@@ -97,10 +129,9 @@ export const AiStrategicBriefModal: React.FC<AiStrategicBriefModalProps> = ({
                             <span>Loading brief...</span>
                         </div>
                     ) : (
-                        <div 
-                            className="text-sm text-brand-text-secondary leading-relaxed prose prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ __html: fullText }}
-                        />
+                        <p className="text-sm text-brand-text-secondary leading-relaxed whitespace-pre-wrap">
+                            {fullText}
+                        </p>
                     )}
                 </div>
             </div>
