@@ -247,6 +247,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({ activi
     const [panelWidth, setPanelWidth] = useState<number>(0);
     const [activityFeedRight, setActivityFeedRight] = useState<number>(0);
     const [activityFeedLeft, setActivityFeedLeft] = useState<number>(0);
+    const [metricsVersion, setMetricsVersion] = useState<number>(0); // Триггер для пересчета метрик
 
     // Используем useRef для хранения стабильной версии метрик, чтобы не пересчитывать при каждом обновлении
     const metricsRef = useRef<{ length: number; lastUpdate: number; metrics: DailyMetric[] }>({ 
@@ -258,6 +259,19 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({ activi
     // Используем useRef для хранения реальных комментариев, чтобы не пересчитывать при каждом изменении allComments
     const commentsRef = useRef<{ activityId: number | null; comments: Comment[] }>({ activityId: null, comments: [] });
 
+    // Обновляем metricsRef когда allMetrics изменяются
+    useEffect(() => {
+        if (allMetrics && allMetrics.length > 0) {
+            metricsRef.current = {
+                length: allMetrics.length,
+                lastUpdate: Date.now(),
+                metrics: allMetrics
+            };
+            // Триггерим пересчет анализа
+            setMetricsVersion(prev => prev + 1);
+        }
+    }, [allMetrics]);
+
     // Сбрасываем состояние при закрытии/открытии модала
     useEffect(() => {
         if (!activity) {
@@ -267,11 +281,23 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({ activi
             setCampaignGoal('');
             setSelectedCommentCategory('all');
             setShouldAnimate(false);
+            setMetricsVersion(0);
             // Сбрасываем ref метрик при закрытии
             metricsRef.current = { length: 0, lastUpdate: 0, metrics: [] };
             commentsRef.current = { activityId: null, comments: [] };
+        } else {
+            // При открытии модала заполняем metricsRef
+            if (allMetrics && allMetrics.length > 0) {
+                metricsRef.current = {
+                    length: allMetrics.length,
+                    lastUpdate: Date.now(),
+                    metrics: allMetrics
+                };
+                // Триггерим пересчет анализа
+                setMetricsVersion(prev => prev + 1);
+            }
         }
-    }, [activity]);
+    }, [activity, allMetrics]);
 
     // Вычисляем ширину панели на основе позиции Community Pulse
     useEffect(() => {
@@ -584,7 +610,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({ activi
             negativeCommentsList: postComments.filter(c => c.sentiment === 'Negative').slice(0, 10),
             neutralComments: postComments.filter(c => c.sentiment === 'Neutral').slice(0, 5),
         }
-    }, [activity?.id, activity?.status, activity?.date, activity?.startDate, activity?.endDate, impactDays, commentsWithMock, allMetrics.length]);
+    }, [activity?.id, activity?.status, activity?.date, activity?.startDate, activity?.endDate, impactDays, commentsWithMock, metricsVersion]);
 
     // Загрузка AI инсайтов при открытии модала (только один раз)
     useEffect(() => {
