@@ -610,9 +610,10 @@ class SupabaseService {
       const text = props.title ||  // Reddit post title
                    props.selftext ||  // Reddit post text
                    props.description ||  // TikTok video description
+                   props.caption ||  // Instagram caption
+                   props.text ||  // Twitter text
                    props.comment_text ||
                    props.comment_body ||
-                   props.text ||
                    props.message_content ||
                    props.body ||
                    props.content ||
@@ -621,6 +622,8 @@ class SupabaseService {
       // Извлекаем автора
       const rawAuthor = props.author ||
                         props.author_name ||
+                        props.author_username ||  // Twitter
+                        props.owner_username ||  // Instagram
                         props.username ||
                         props.user ||
                         'Anonymous';
