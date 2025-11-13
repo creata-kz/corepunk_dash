@@ -254,7 +254,8 @@ class SupabaseService {
         // Считаем посты и комментарии для dailyMentions
         if (event.event_type.includes('post') ||
             event.event_type === 'video_mention' ||
-            event.event_type === 'vk_mention') {  // VK posts
+            event.event_type === 'vk_mention' ||  // VK posts
+            event.event_type === 'reddit_post_mention') {  // Reddit posts
           metric.posts!++;
           metric.byPlatform![platform].dailyMentions++;
         }
@@ -269,7 +270,8 @@ class SupabaseService {
         if (event.event_type.includes('post') ||
             event.event_type.includes('comment') ||
             event.event_type === 'video_mention' ||
-            event.event_type === 'vk_mention') {  // VK posts
+            event.event_type === 'vk_mention' ||  // VK posts
+            event.event_type === 'reddit_post_mention') {  // Reddit posts
           if (props.score && props.score > 1) {
             likesForThisEvent += props.score - 1; // Reddit score включает сам пост
           }
@@ -286,7 +288,8 @@ class SupabaseService {
         // Value field (Reddit uses this for score, TikTok for likes, VK for likes)
         if (event.value && (event.event_type.includes('post') ||
                             event.event_type === 'video_mention' ||
-                            event.event_type === 'vk_mention')) {  // VK posts
+                            event.event_type === 'vk_mention' ||  // VK posts
+                            event.event_type === 'reddit_post_mention')) {  // Reddit posts
           let valueAsLikes = 0;
           if (event.event_type === 'video_mention' || event.event_type === 'vk_mention') {
             // TikTok and VK value is already likes count
@@ -435,7 +438,7 @@ class SupabaseService {
    * Получение постов и комментариев пользователей для Community Pulse
    * Включает посты и комментарии со всех платформ
    */
-  public async getComments(days: number = 90): Promise<Comment[]> {
+  public async getComments(days: number = 365): Promise<Comment[]> {
     if (!this.isConnected() || !this.client) {
       console.warn('⚠️ Supabase not connected in getComments');
       return [];
@@ -454,7 +457,7 @@ class SupabaseService {
         .gte('event_timestamp', startDateStr)
         .not('event_type', 'in', '(release,hotfix,marketing_campaign,community_event,pr_publication,video_stats_snapshot)')
         .order('event_timestamp', { ascending: false })
-        .limit(500);
+        .limit(1000);
 
       console.log('📥 Query result:', { dataLength: data?.length, hasError: !!error });
 
@@ -639,7 +642,8 @@ class SupabaseService {
       // Определяем, это пост или комментарий
       const isPost = event.event_type.includes('post') ||
                      event.event_type === 'video_mention' ||
-                     event.event_type === 'vk_mention';  // VK posts
+                     event.event_type === 'vk_mention' ||  // VK posts
+                     event.event_type === 'reddit_post_mention';  // Reddit posts
 
       // Определяем post_id в зависимости от платформы и типа события
       let postId: string | undefined;
