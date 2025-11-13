@@ -712,6 +712,7 @@ class SupabaseService {
     // Простой анализ по ключевым словам из всех возможных текстовых полей
     const text = (
       props.text ||
+      props.caption ||  // Instagram caption
       props.comment_text ||
       props.comment_body ||
       props.message_content ||
